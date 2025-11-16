@@ -1940,8 +1940,6 @@ echo "Please access http://$DOMAIN/nextcloud to complete setup in the browser."
 }
 
 moodle_install(){
-# Script that configure moodle 
-moodle_install(){
     # Script that configure moodle 
 
     echo -e "${GREEN}${BOLD}=============================================="
