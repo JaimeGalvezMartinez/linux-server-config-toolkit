@@ -3340,7 +3340,7 @@ moodle_install() {
     echo -e "${GREEN}${BOLD}=============================================="
     echo -e "${GREEN}${BOLD}============== MOODLE SETUP =================="
     echo -e "${GREEN}${BOLD}=============================================="
-}
+
 
 
 # Prompt for database name
