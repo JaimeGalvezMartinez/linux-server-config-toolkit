@@ -290,7 +290,7 @@ function resolvePublicIP() {
 
 function installQuestions() {
 	echo "Welcome to the OpenVPN installer!"
-	echo "The git repository is available at: https://github.com/angristan/openvpn-install"
+	echo "The git repository is available at: https://github.com/JaimeGalvezMartinez/linux-server-config-toolkit/"
 	echo ""
 
 	echo "I need to ask you a few questions before starting the setup."
