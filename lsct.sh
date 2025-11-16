@@ -1941,10 +1941,14 @@ echo "Please access http://$DOMAIN/nextcloud to complete setup in the browser."
 
 moodle_install(){
 # Script that configure moodle 
+moodle_install(){
+    # Script that configure moodle 
 
-echo -e "${GREEN}${BOLD}=============================================="
-echo -e "${GREEN}${BOLD]============== MOODLE SETUP =================="
-echo -e "${GREEN}${BOLD}=============================================="
+    echo -e "${GREEN}${BOLD}=============================================="
+    echo -e "${GREEN}${BOLD}============== MOODLE SETUP =================="
+    echo -e "${GREEN}${BOLD}=============================================="
+}
+
 
 # Prompt for database name
 read -p "Enter the database name (default: moodle_db): " DB_NAME
