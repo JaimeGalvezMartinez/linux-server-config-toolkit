@@ -1939,7 +1939,9 @@ echo "Nextcloud installation complete."
 echo "Please access http://$DOMAIN/nextcloud to complete setup in the browser."
 }
 
-moodle_install(){
+backup_or_restore_backup_from_ssh_server() {
+
+
     # Script that configure moodle 
 
     echo -e "${GREEN}${BOLD}=============================================="
