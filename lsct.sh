@@ -2097,6 +2097,14 @@ wp_install() {
 # Enable strict mode: stop script execution if any command fails
 set -e
 
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}====================== Latest Wordpress Install ===================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
+echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ===================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo ""    
+
 # Define variables
 WP_URL="https://wordpress.org/latest.tar.gz"
 WP_ARCHIVE="latest.tar.gz"
