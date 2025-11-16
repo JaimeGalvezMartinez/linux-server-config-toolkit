@@ -4930,7 +4930,7 @@ read -rp "Choose an option: " opcion
    	17) configure_acl ;;
     18) manage_certbot ;;
 	19) backup_or_restore_backup_from_ssh_server ;;
- 	20) setup_open_vpn;;
+ 	20) setup_openvpn;;
   	21) setup_wireguard_vpn;;
 	22) PXE_Setup;;
 	23) zentyal_80_setup;;
