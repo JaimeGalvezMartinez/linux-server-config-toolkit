@@ -24,6 +24,14 @@ fi
 
 setup_openvpn () {
 
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}============== OpenVPN Configuration Toolkit  =====================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
+echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ===================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo ""    
+
 # Secure OpenVPN server installer for Debian, Ubuntu, CentOS, Amazon Linux 2, Fedora, Oracle Linux 8, Arch Linux, Rocky Linux and AlmaLinux.
 
 function isRoot() {
