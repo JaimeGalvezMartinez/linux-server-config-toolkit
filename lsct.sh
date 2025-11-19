@@ -4740,12 +4740,17 @@ shutdown_system() {
 		echo "The system will shutdown"
 
 }
+
 PXE_Setup () {
 
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo -e "${CYAN}${BOLD}                            iVentoy PXE Setup${NC}"
+echo -e "${CYAN}${BOLD}================ Network Bootloader Configuration =================${NC}"
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo
+echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
+echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ===================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo ""    
+
 # Colors for messages
 RED="\e[31m"
 GREEN="\e[32m"
