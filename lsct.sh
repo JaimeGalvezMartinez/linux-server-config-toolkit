@@ -4031,7 +4031,7 @@ get_public_ip() {
     if [[ -n "$PUBLIC_IP" ]]; then
         echo -e "${GREEN}${BOLD}Public IP: $PUBLIC_IP..${NC}"
     else
-        echo -e "${RED}${BOLD}"Could not obtain your Public IP Address. Check your Internet connection...${NC}""
+        echo -e "${RED}${BOLD}"Could not obtain your Public IP Address. Check your Internet connection...${NC}"
     fi
 }
 
@@ -4040,9 +4040,9 @@ get_INTERNET_CONNECTION() {
     echo "INTERNET CONNECTION:"
     var=$(curl -s --head http://www.google.com | head -n 1)
     if [[ $var == *"200 OK"* ]]; then
-        echo "Internet Connection: Active"
+   echo -e "${GREEN}${BOLD}Internet Connection: Active${NC}"
     else
-        echo -e "${RED}${BOLD}No internet connection detected. Please check your network adapter and rerun the script."
+        echo -e "${RED}${BOLD}No internet connection detected. Please check your network adapter and rerun the script.${NC}"
     fi
 }
 
@@ -4077,14 +4077,13 @@ echo "-----------------------------------"
 # Función para gestionar Certbot (instalar, ver, eliminar)
 manage_certbot() {
   while true; do
-    clear
-    echo "=== Certbot SSL Certificate Manager ==="
+    clear    echo "=== Certbot SSL Certificate Manager ==="
     echo "1) Install SSL certificate"
     echo "2) Show existing certificates"
     echo "3) Delete SSL certificate"
     echo -e "${RED}${BOLD}0) Back to main menu..${NC}""
     echo "======================================="
-    read -p "Select an option [1-4]: " choice
+    read -p "Select an option [1, 2, 3 or 0]: " choice
 
     case $choice in
       1)
