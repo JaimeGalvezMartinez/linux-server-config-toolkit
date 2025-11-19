@@ -4081,7 +4081,7 @@ manage_certbot() {
     echo "1) Install SSL certificate"
     echo "2) Show existing certificates"
     echo "3) Delete SSL certificate"
-    echo -e "${RED}${BOLD}0) Back to main menu..${NC}""
+    echo -e "${RED}${BOLD}0) Back to main menu..${NC}"
     echo "======================================="
     read -p "Select an option [1, 2, 3 or 0]: " choice
 
