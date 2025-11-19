@@ -1892,8 +1892,9 @@ function install_zentyal {
 
 echo -e "\e[33mWarning\e[0m"
 echo
-echo "It is highly recommended that no additional packages such as MySQL are installed on the server;"
-echo "otherwise, the installation may fail and leave the server unstable."
+echo -e "${YELLOW}${BOLD}It is highly recommended that no additional packages such as MySQL are installed on the server;"
+echo
+echo -e "${YELLOW}${BOLD}otherwise, the installation may fail and leave the server unstable."
 
 read -rp "Continue with installation? (y/n): " CONFIRM
 [[ "$CONFIRM" =~ ^[yY]$ ]] || { echo -e ${RED}${BOLD}"❌ Installation cancelled."; exit 1; }
