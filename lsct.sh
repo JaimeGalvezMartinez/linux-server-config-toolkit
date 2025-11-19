@@ -4031,7 +4031,7 @@ get_public_ip() {
     if [[ -n "$PUBLIC_IP" ]]; then
         echo -e "${GREEN}${BOLD}Public IP: $PUBLIC_IP..${NC}"
     else
-        echo -e "${RED}${BOLD}"Could not obtain your Public IP Address. Check your Internet connection...${NC}"
+        echo -e "${RED}${BOLD}Could not obtain your Public IP Address. Check your Internet connection...${NC}"
     fi
 }
 
