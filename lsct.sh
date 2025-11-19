@@ -1426,13 +1426,13 @@ BOLD='\033[1m'
 NC='\033[0m' # Sin color
 
 # Encabezado
-echo -e "${RED}${BOLD}==============================================${NC}"
-echo -e "${CYAN}${BOLD}🚀 Vaultwarden Installer with HTTPS Proxy${NC}"
-echo -e "${RED}${BOLD}==============================================${NC}"
-echo -e "${RED}${BOLD}==============================================${NC}"
+echo -e "${RED}${BOLD}==========================================================${NC}"
+echo -e "${CYAN}${BOLD}🚀 Vaultwarden Password Manger Installer with HTTPS Proxy${NC}"
+echo -e "${RED}${BOLD}==========================================================${NC}"
+echo -e "${RED}${BOLD}==========================================================${NC}"
 echo -e "${CYAN}${BOLD} Author: Jaime Galvez Martinez${NC}"
 echo -e "${CYAN}${BOLD} GitHub: github.com/JaimeGalvezMartinez${NC}"
-echo -e "${RED}${BOLD}==============================================${NC}"
+echo -e "${RED}${BOLD}==========================================================${NC}"
 echo ""
 
 
