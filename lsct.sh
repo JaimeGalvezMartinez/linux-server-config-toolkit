@@ -4029,9 +4029,9 @@ get_public_ip() {
     echo "PUBLIC IP:"
     PUBLIC_IP=$(curl -s ifconfig.me)
     if [[ -n "$PUBLIC_IP" ]]; then
-        echo -e "${GREEN}${BOLD}Public IP: $PUBLIC_IP"
+        echo -e "${GREEN}${BOLD}Public IP: $PUBLIC_IP..${NC}"
     else
-        echo -e "${RED}${BOLD}"Could not obtain your Public IP Address. Check your Internet connection."
+        echo -e "${RED}${BOLD}"Could not obtain your Public IP Address. Check your Internet connection...${NC}""
     fi
 }
 
@@ -4082,7 +4082,7 @@ manage_certbot() {
     echo "1) Install SSL certificate"
     echo "2) Show existing certificates"
     echo "3) Delete SSL certificate"
-    echo -e "${RED}${BOLD}0) Back to main menu"
+    echo -e "${RED}${BOLD}0) Back to main menu..${NC}""
     echo "======================================="
     read -p "Select an option [1-4]: " choice
 
