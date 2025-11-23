@@ -3601,7 +3601,7 @@ systemctl restart apache2
 # Finish
 echo "---------------------------------------------------------------------"
 echo -e "${GREEN}${BOLD}Moodle installation complete.${NC}"
-echo "La configuración de 'max_input_vars' ha sido actualizada de forma robusta a 5000."
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
 echo "Please access ${BOLD}${WWWROOT}${NC} to complete the final setup in the browser."
 echo "---------------------------------------------------------------------"
 
