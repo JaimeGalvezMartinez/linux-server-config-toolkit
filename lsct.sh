@@ -3335,14 +3335,13 @@ echo "Please access http://$DOMAIN/nextcloud to complete setup in the browser."
 
 moodle_install() {
 
-
-    # Script that configure moodle 
-
-    echo -e "${GREEN}${BOLD}=============================================="
-    echo -e "${GREEN}${BOLD}============== MOODLE SETUP =================="
-    echo -e "${GREEN}${BOLD}=============================================="
-
-
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}======================= Latest Moodle Setup =======================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
+echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ===================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo ""    
 
 # Prompt for database name
 read -p "Enter the database name (default: moodle_db): " DB_NAME
@@ -3355,30 +3354,25 @@ DB_USER=${DB_USER:-"moodle_user"}
 read -p "What will be your data directory? (default: /var/www/moodledata): " data_directory
 data_directory=${data_directory:-"/var/www/moodledata"}
 
-
-
 # Compare passwords
 while true; do
-# Start an infinite loop to keep prompting until the password is confirmed 
+    # Start an infinite loop to keep prompting until the password is confirmed
 
-# Prompt Again for database password
+    # Prompt Again for database password
     read -sp "Enter the password for the database user: " DB_PASSWORD
     echo
     # Prompt for database password
     read -sp "Re-enter the password to verify: " DB_PASSWORD2
     echo
 
- # Compare the two passwords
- 
+    # Compare the two passwords
     if [ "$DB_PASSWORD" == "$DB_PASSWORD2" ]; then
-    # If they match, confirm success and break out of the loop
-    
-        echo -e "${GREEN}${BOLD}Password confirmed."
+        # If they match, confirm success and break out of the loop
+        echo -e "${GREEN}${BOLD}Password confirmed.${NC}"
         break
     else
-     # If they don't match, show an error and prompt again
-     
-        echo -e "${RED}${BOLD}Error: Passwords do not match. Please try again."
+        # If they don't match, show an error and prompt again
+        echo -e "${RED}${BOLD}Error: Passwords do not match. Please try again.${NC}"
     fi
 done
 
@@ -3386,15 +3380,12 @@ done
 read -p "Enter the moodle installation path (default: /var/www/html/moodle): " MOODLE_PATH
 MOODLE_PATH=${MOODLE_PATH:-"/var/www/html/moodle"}
 
+# Prompt for domain or IP (will be used to construct wwwroot)
+read -p "Enter the domain or IP to access Moodle (e.g., example.com or 192.168.1.1): " DOMAIN
 
-# Prompt for domain or IP
-read -p "Enter the domain or IP to access Moodle: " DOMAIN
+# Define WWWROOT using http:// (can be adjusted to https later)
+WWWROOT="http://${DOMAIN}/moodle"
 
-
-# Colores
-GREEN='\033[0;32m'
-BOLD='\033[1m'
-NC='\033[0m' # Sin color
 
 # Configuration confirmation
 echo -e ""
@@ -3403,10 +3394,10 @@ echo -e "${GREEN}${BOLD}============ Configuration Summary ====================$
 echo -e "${GREEN}${BOLD}========================================================${NC}"
 echo -e ""
 
-echo -e "${GREEN}Database: ${BOLD}$DB_NAME${NC}"
-echo -e "${GREEN}Database User: ${BOLD}Root${NC}"
+echo -e "${GREEN}Database Name: ${BOLD}$DB_NAME${NC}"
+echo -e "${GREEN}Database User: ${BOLD}$DB_USER${NC}"
 echo -e "${GREEN}Installation Path: ${BOLD}$MOODLE_PATH${NC}"
-echo -e "${GREEN}Domain or IP: ${BOLD}$DOMAIN${NC}"
+echo -e "${GREEN}Web Root (wwwroot): ${BOLD}$WWWROOT${NC}"
 echo -e "${GREEN}Data Directory: ${BOLD}$data_directory${NC}"
 echo ""
 
@@ -3420,71 +3411,200 @@ if [[ ! "$CONFIRM" =~ ^[yY]$ ]]; then
 fi
 
 # Rest of the script for Moodle installation
+echo "========================================================"
+echo "=============== Starting installation... ==============="
+echo "========================================================"
+
 # Update and upgrade packages
-echo "========================================================"
-echo "=============== Updating system... ====================="
-echo "========================================================"
+echo -e "${GREEN}Updating system...${NC}"
 apt update && apt upgrade -y
 
 # Install Apache
-echo "Installing Apache..."
+echo -e "${GREEN}Installing Apache...${NC}"
 apt install apache2 -y
 ufw allow 'Apache Full'
 
 # Install MariaDB
-echo "Installing MariaDB..."
+echo -e "${GREEN}Installing MariaDB...${NC}"
 apt install mariadb-server -y
-mysql_secure_installation
+# NOTE: mysql_secure_installation requires manual interaction and should be run separately
+# for a proper installation setup. Skipping for non-interactive script.
 
-# Create database and user for moodle
-echo "Configuring database for Moodle.."
-mysql -u root -e "CREATE DATABASE ${DB_NAME};"
-mysql -u root -e "CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';"
-mysql -u root -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
-mysql -u root -e "FLUSH PRIVILEGES;"
-
-# Install PHP and necessary modules
-echo "Installing PHP  and modules..."
-sudo apt install -y php php-gd php-json php-mbstring php-curl php-xml php-zip php-mysql php-intl php-bz2 php-imagick php-fpm php-cli libapache2-mod-php php-sqlite3 php-pgsql git
-sudo apt update
-sudo apt install php-curl php-zip
+# Install PHP and necessary modules (php-sodium was removed to fix package location error)
+echo -e "${GREEN}Installing PHP and modules (including optional modules like SOAP and EXIF)...${NC}"
+apt install -y php php-gd php-json php-mbstring php-curl php-xml php-zip php-mysql php-intl php-bz2 php-imagick php-fpm php-cli libapache2-mod-php php-sqlite3 php-pgsql git php-soap php-xmlrpc php-tokenizer php-exif
 
 # Configure PHP
-echo "Configuring PHP..."
+echo -e "${GREEN}Configuring PHP settings...${NC}"
 PHP_INI_PATH=$(php -r "echo php_ini_loaded_file();")
 sed -i "s/memory_limit = .*/memory_limit = 512M/" "$PHP_INI_PATH"
 sed -i "s/upload_max_filesize = .*/upload_max_filesize = 512M/" "$PHP_INI_PATH"
 sed -i "s/post_max_size = .*/post_max_size = 512M/" "$PHP_INI_PATH"
 sed -i "s/max_execution_time = .*/max_execution_time = 300/" "$PHP_INI_PATH"
 
+# FIX: Set max_input_vars to 5000 or higher (Robust replacement for commented/uncommented lines)
+# This single command uses a regex pattern to find the line (with optional leading semicolon and spaces)
+# and replaces the entire match with the required setting, ensuring it is uncommented and set to 5000.
+sed -i -E 's/^(;?\s*)max_input_vars\s*=\s*.*/max_input_vars = 5000/' "$PHP_INI_PATH"
 
-# Download and configure Moodle
-echo "Downloading Moodle..."
-sudo apt install git
-sudo apt install php-xml
-sudo apt install php-mbstring
-sudo apt install php-mysqli
 
-git clone https://github.com/moodle/moodle.git
-mv moodle $MOODLE_PATH
-chown -R www-data:www-data $MOODLE_PATH
-chmod -R 755 $MOODLE_PATH
+# Configure database for Moodle
+echo -e "${GREEN}Configuring database for Moodle..${NC}"
+# Check if DB_PASSWORD is provided before using it in the command
+if [ -z "$DB_PASSWORD" ]; then
+    echo -e "${RED}Database password cannot be empty. Aborting DB setup.${NC}"
+    exit 1
+fi
+
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';"
+mysql -u root -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
+mysql -u root -e "FLUSH PRIVILEGES;"
+echo -e "${GREEN}Database ${DB_NAME} and user ${DB_USER} created.${NC}"
+
+# Download Moodle
+echo -e "${GREEN}Downloading Moodle from Git repository...${NC}"
+# Assuming the script is run in a location where 'moodle' directory creation is possible
+git clone https://github.com/moodle/moodle.git /tmp/moodle_temp
+
+# Create the target directory if it doesn't exist
+mkdir -p $MOODLE_PATH
+
+# Move Moodle files
+echo -e "${GREEN}Moving Moodle files to ${MOODLE_PATH}...${NC}"
+rsync -av /tmp/moodle_temp/ $MOODLE_PATH
+rm -rf /tmp/moodle_temp
+
+# =======================================================
+# === GENERATE MOODLE CONFIG.PHP
+# =======================================================
+echo -e "${GREEN}${BOLD}Creating Moodle config.php in ${MOODLE_PATH}...${NC}"
+
+cat << EOF > $MOODLE_PATH/config.php
+<?php
+// Moodle Configuration File generated by install script
+unset(\$CFG);
+global \$CFG;
+\$CFG = new stdClass();
+
+// --- Database Configuration (FIXED dbtype to 'mariadb') ---
+\$CFG->dbtype    = 'mariadb';
+\$CFG->dblibrary = 'native';
+\$CFG->dbhost    = 'localhost';
+\$CFG->dbname    = '${DB_NAME}';
+\$CFG->dbuser    = '${DB_USER}';
+\$CFG->dbpass    = '${DB_PASSWORD}';
+\$CFG->prefix    = 'mdl_';
+
+\$CFG->dboptions = array(
+  'dbpersist' => 0,
+  'dbport' => '',
+  'dbsocket' => '',
+  'dbcollation' => 'utf8mb4_unicode_ci',
+);
+
+// --- Web and Data Directory Configuration ---
+\$CFG->wwwroot   = '${WWWROOT}';
+\$CFG->dataroot  = '${data_directory}';
+\$CFG->admin     = 'admin';
+
+// --- Permissions ---
+\$CFG->directorypermissions = 0777;
+
+require_once(__DIR__ . '/lib/setup.php');
+// DO NOT ADD ANYTHING AFTER THIS LINE
+EOF
+# =======================================================
+
+# =======================================================
+# === CONFIGURE APACHE VIRTUAL HOST AND SECURITY
+# =======================================================
+echo -e "${GREEN}${BOLD}Configuring Apache Virtual Host to use /public directory for security...${NC}"
+
+APACHE_CONF="/etc/apache2/sites-available/moodle.conf"
+
+cat << EOF > $APACHE_CONF
+# Moodle Virtual Host Configuration
+<VirtualHost *:80>
+    ServerAdmin webmaster@localhost
+    ServerName ${DOMAIN}
+
+    # DocumentRoot points to the default HTML directory.
+    DocumentRoot /var/www/html 
+
+    # Alias maps the URL path /moodle to the physical path ${MOODLE_PATH}/public
+    # This ensures Moodle is only served from the secure 'public' subfolder.
+    Alias /moodle "${MOODLE_PATH}/public"
+
+    # Directory access rules for the public-facing content
+    <Directory ${MOODLE_PATH}/public>
+        # Allow .htaccess files for Moodle clean URLs and configuration
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # CRITICAL SECURITY STEP: Explicitly DENY access to the Moodle root directory.
+    # This prevents public access to config.php, lib, etc.
+    <Directory ${MOODLE_PATH}>
+        Require all denied
+    </Directory>
+    
+    # Deny access to the separate data directory
+    <Directory ${data_directory}>
+        Require all denied
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/moodle_error.log
+    CustomLog \${APACHE_LOG_DIR}/moodle_access.log combined
+</VirtualHost>
+EOF
+
+# Enable the rewrite module (essential for Moodle's clean URLs)
+echo -e "${GREEN}Enabling Apache rewrite module...${NC}"
+a2enmod rewrite
+
+# Enable the new Moodle site and disable the default one (if it exists)
+echo -e "${GREEN}Enabling Moodle site configuration...${NC}"
+a2dissite 000-default.conf || true # Ignore error if already disabled
+a2ensite moodle.conf
+
+# =======================================================
+# === INSTALL COMPOSER DEPENDENCIES
+# =======================================================
+echo -e "${GREEN}${BOLD}Installing Composer and resolving Moodle dependencies...${NC}"
+# Install Composer
+curl -sS https://getcomposer.org/installer | php
+mv composer.phar /usr/local/bin/composer
+
+# Run composer install in Moodle root directory
+cd $MOODLE_PATH
+composer install --no-dev --classmap-authoritative
+cd - # Return to previous directory
 
 # Make the Moodle data directory
-
-mkdir $data_directory
+echo -e "${GREEN}Creating and setting permissions for data directory ${data_directory}...${NC}"
+mkdir -p $data_directory
 chown -R www-data:www-data $data_directory
-chmod -R 755 $data_directory
+# Using 0777 initially is common for installation to prevent permission errors
+chmod -R 0777 $data_directory 
+
+# Set permissions for Moodle code
+echo -e "${GREEN}Setting ownership and permissions for Moodle code...${NC}"
+chown -R www-data:www-data $MOODLE_PATH
+chmod -R 0755 $MOODLE_PATH
 
 # Restart Apache web server
+echo -e "${GREEN}Restarting Apache web server...${NC}"
 systemctl restart apache2
 
 # Finish
 echo "---------------------------------------------------------------------"
-echo "Moodle installation complete."
-echo "Please access http://$DOMAIN/moodle to complete setup in the browser."
+echo -e "${GREEN}${BOLD}Moodle installation complete.${NC}"
+echo "La configuración de 'max_input_vars' ha sido actualizada de forma robusta a 5000."
+echo "Please access ${BOLD}${WWWROOT}${NC} to complete the final setup in the browser."
 echo "---------------------------------------------------------------------"
-}
+
 
 wp_install() {
 
