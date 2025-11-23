@@ -5117,6 +5117,8 @@ else
     exit 1
 fi
 
+apk add sudo #Only for Alpine Linux
+
 echo -e "${BLUE}🚀 Starting iVentoy PXE installation...${NC}"
 
 # ------------------------------
@@ -5196,6 +5198,35 @@ cat <<EOF > $JSON_FILE
 }
 EOF
 echo -e "${GREEN}✔ JSON created at $JSON_FILE${NC}"
+
+# Download packages for Alpine Linux
+
+apk update
+apk add wget curl
+
+# 1. Navigate to a temporary directory
+cd /tmp
+
+# 2. Define the glibc version (using a common, stable version, e.g., 2.35)
+GLIBC_VERSION="2.35-r1"
+
+# 3. Download the core glibc packages
+echo "Downloading glibc packages for Alpine..."
+wget -q "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk"
+wget -q "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-bin-${GLIBC_VERSION}.apk"
+wget -q "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-i18n-${GLIBC_VERSION}.apk"
+
+# 4. Install the packages, bypassing signature checks since they are external
+echo "Installing glibc packages..."
+apk add --allow-untrusted glibc-${GLIBC_VERSION}.apk glibc-bin-${GLIBC_VERSION}.apk glibc-i18n-${GLIBC_VERSION}.apk
+
+# 5. Configure localization (essential for many binaries)
+echo "Configuring glibc localization..."
+/usr/glibc-compat/bin/localedef --force --inputfile POSIX --encoding UTF-8 C.UTF-8
+/usr/glibc-compat/bin/localedef --force --inputfile /usr/glibc-compat/share/i18n/locales/en_US --encoding UTF-8 en_US.UTF-8
+
+# 6. Clean up
+rm -f glibc-*.apk
 
 # ------------------------------
 # 7️⃣ Configure Service based on INIT_SYSTEM
