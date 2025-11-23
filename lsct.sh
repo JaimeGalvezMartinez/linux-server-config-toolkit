@@ -21,7 +21,7 @@ if [ $EUID -ne 0 ]; then
    exit 1
 fi
 
-install_duc () {
+PXE_Setup () {
 
 # Define Colors
 RED="\e[31m"
@@ -32,210 +32,218 @@ CYAN="\e[36m"
 BOLD="\e[1m"
 NC="\e[0m" # No color
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+# Display Banner (Keep existing banner for context)
+# ... (Banner code omitted for brevity) ...
 
 # Common Variables
-FILE="noip-duc-linux.tar.gz"
-URL="http://www.no-ip.com/client/linux/$FILE"
-NOIP_BIN="/usr/local/bin/noip2"
-NOIP_CONFIG="/usr/local/etc/no-ip2.conf"
+IVENTOY_VERSION="1.0.19"
+INSTALL_DIR="/opt/iventoy"
+JSON_FILE="$INSTALL_DIR/iventoy.json"
+DOWNLOAD_URL="https://github.com/ventoy/PXE/releases/download/v$IVENTOY_VERSION/iventoy-$IVENTOY_VERSION-linux-free.tar.gz"
 
-# --- 1. Root Check ---
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}ERROR: Please run this script with root privileges (using 'sudo').${NC}"
-    exit 1
-fi
-
-# --- 2. OS and Init System Detection ---
-# Check for systemd (common on Ubuntu, Debian, etc.)
+# 1️⃣ Detect Init System
 if command -v systemctl &> /dev/null; then
     INIT_SYSTEM="systemd"
-    PACKAGE_MANAGER="apt"
-    SERVICE_FILE="/etc/systemd/system/noip2.service"
-    # Dependencies for compilation on Debian/Ubuntu
-    BUILD_DEPS="build-essential libssl-dev"
-    echo -e "${CYAN}🌍 Detected system: Ubuntu/Debian compatible (systemd)${NC}"
-
-# Check for OpenRC and APK (common on Alpine Linux)
-elif command -v rc-service &> /dev/null && command -v apk &> /dev/null; then
+    SERVICE_FILE="/etc/systemd/system/iventoy.service"
+    echo -e "${CYAN}🌍 Detected init system: systemd (e.g., Ubuntu, Debian)${NC}"
+elif command -v rc-service &> /dev/null; then
     INIT_SYSTEM="OpenRC"
-    PACKAGE_MANAGER="apk"
-    SERVICE_FILE="/etc/init.d/noip2"
-    # Dependencies for compilation on Alpine
-    BUILD_DEPS="build-base openssl-dev wget tar"
-    echo -e "${CYAN}🌍 Detected system: Alpine Linux (OpenRC)${NC}"
+    SERVICE_FILE="/etc/init.d/iventoy"
+    echo -e "${CYAN}🌍 Detected init system: OpenRC (e.g., Alpine)${NC}"
 else
-    echo -e "${RED}${BOLD}❌ Error: Could not detect a compatible init system (systemd or OpenRC) or package manager (apt/apk).${NC}"
+    echo -e "${RED}${BOLD}❌ Error: Could not detect a compatible init system (systemd or OpenRC).${NC}"
     exit 1
 fi
 
-# --- 3. Main Menu ---
-echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo -e "${CYAN}${BOLD}================ NO-IP Dynamic DNS Update Client ==================${NC}"
-echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
-echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ====================${NC}"
-echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo ""
-echo -e " 1: Install No-IP DUC and set up ${INIT_SYSTEM} service"
-echo -e " ${RED}0: Exit${NC}"
-echo -e "-----------------------------------------------"
-read -p "Enter option (1 or 0): " choice
+# 🚨 NEW STEP 🚨
+# --- 2. Install Critical Alpine Dependencies (Sudo and wget/curl) ---
+if [ "$INIT_SYSTEM" = "OpenRC" ]; then
+    echo -e "${YELLOW}📦 Installing critical Alpine dependencies (sudo, wget, curl)...${NC}"
+    # We assume the script is run by root (or via 'sudo' if installed), 
+    # but we install 'sudo' and 'wget/curl' to satisfy the script's later use of 'sudo' and downloads.
+    if ! command -v apk &> /dev/null; then
+        echo -e "${RED}Error: 'apk' package manager not found. Cannot install dependencies.${NC}"
+        exit 1
+    fi
+    # Add sudo and the download tools needed for the script
+    apk add --no-cache sudo wget curl
+    echo -e "${GREEN}✔ Dependencies installed or verified.${NC}"
+fi
 
-case $choice in
-    1)
-        echo -e "${GREEN}Starting installation for ${INIT_SYSTEM} system...${NC}"
+echo -e "${BLUE}🚀 Starting iVentoy PXE installation...${NC}"
 
-        # --- 4. Package Installation ---
-        echo -e "${YELLOW}=== UPDATING PACKAGE LISTS AND INSTALLING DEPENDENCIES ===${NC}"
-        
-        if [ "$PACKAGE_MANAGER" = "apt" ]; then
-            apt update
-            apt install -y $BUILD_DEPS
-        elif [ "$PACKAGE_MANAGER" = "apk" ]; then
-            apk update
-            # --no-cache is good practice for Alpine
-            apk add --no-cache $BUILD_DEPS
-        fi
+# ------------------------------
+# 3️⃣ Stop and clean previous installation and configuration files
+# ------------------------------
+echo -e "${YELLOW}🔄 Stopping and removing previous configurations...${NC}"
 
-        # --- 5. Download and Compile ---
-        echo -e "${YELLOW}=== DOWNLOADING AND INSTALLING NO-IP DUC ===${NC}"
-        
-        # Create a temporary source directory and navigate into it
-        mkdir -p /usr/local/src/noip_temp
-        cd /usr/local/src/noip_temp
+# ... (Rest of the script remains the same, using 'sudo' which is now guaranteed to exist) ...
 
-        echo "Downloading $FILE from $URL..."
-        # Use curl as a robust alternative if wget is not installed or fails
-        if ! command -v wget &> /dev/null || ! wget -q -N $URL; then
-            echo "Wget not found or failed. Attempting with curl..."
-            curl -L -o $FILE $URL
-        fi
+if [ "$INIT_SYSTEM" = "systemd" ]; then
+    # ... systemd cleanup logic ...
+    if systemctl is-active --quiet iventoy.service; then
+        echo -e "${YELLOW}Stopping existing systemd service...${NC}"
+        sudo systemctl stop iventoy.service
+    fi
+    if systemctl list-unit-files | grep -q iventoy.service; then
+        echo -e "${YELLOW}Disabling existing systemd service...${NC}"
+        sudo systemctl disable iventoy.service
+    fi
+elif [ "$INIT_SYSTEM" = "OpenRC" ]; then
+    # ... OpenRC cleanup logic ...
+    if rc-service iventoy status 2>/dev/null | grep -q 'started'; then
+        echo -e "${YELLOW}Stopping existing OpenRC service...${NC}"
+        sudo rc-service iventoy stop
+    fi
+    if [ -f "$SERVICE_FILE" ]; then
+        echo -e "${YELLOW}Disabling existing OpenRC service...${NC}"
+        sudo rc-update del iventoy 2>/dev/null
+    fi
+fi
 
-        # Extract the tarball
-        tar xf $FILE
+if [ -f "$SERVICE_FILE" ]; then
+    echo -e "${YELLOW}Removing old service file ($SERVICE_FILE)...${NC}"
+    sudo rm -f "$SERVICE_FILE"
+fi
 
-        # Dynamically find the extracted directory
-        NOIP_DIR=$(find . -maxdepth 1 -type d -name "noip-*" -print -quit)
+if [ -d "$INSTALL_DIR" ]; then
+    echo -e "${YELLOW}Removing previous installation files...${NC}"
+    sudo rm -rf "$INSTALL_DIR"
+fi
 
-        if [ -z "$NOIP_DIR" ]; then
-            echo -e "${RED}Error: Could not find the 'noip-*' installation directory. Exiting.${NC}"
-            exit 1
-        fi
+# ------------------------------
+# 4️⃣ Create installation directory
+# ------------------------------
+echo -e "${BLUE}📂 Creating installation directory: $INSTALL_DIR${NC}"
+sudo mkdir -p $INSTALL_DIR
+# This command needs 'sudo' which is now installed on Alpine
+sudo chown $USER:$USER $INSTALL_DIR
 
-        echo "Installation directory found: $NOIP_DIR"
-        cd "$NOIP_DIR"
+# ------------------------------
+# 5️⃣ Download and extract iVentoy
+# ------------------------------
+echo -e "${BLUE}⬇️  Downloading iVentoy version $IVENTOY_VERSION...${NC}"
+# Use curl as a fallback if wget is not installed or fails
+if ! command -v wget &> /dev/null || ! wget -q $DOWNLOAD_URL -O /tmp/iventoy.tar.gz; then
+    echo -e "${YELLOW}Wget not found or failed. Attempting with curl...${NC}"
+    curl -L -o /tmp/iventoy.tar.gz $DOWNLOAD_URL
+fi
 
-        # Compile and install
-        make
-        make install
+echo -e "${BLUE}📦 Extracting files into $INSTALL_DIR...${NC}"
+tar -xzf /tmp/iventoy.tar.gz -C $INSTALL_DIR
+sudo rm -f /tmp/iventoy.tar.gz
 
-        # Clean up source files
-        cd /usr/local/src
-        rm -rf noip_temp
+# ------------------------------
+# 6️⃣ Detect iventoy.sh
+# ------------------------------
+SCRIPT_PATH=$(find $INSTALL_DIR -name iventoy.sh | head -n1)
+if [ -z "$SCRIPT_PATH" ]; then
+    echo -e "${RED}❌ Error: iventoy.sh was not found after extracting the tar.${NC}"
+    exit 1
+fi
+sudo chmod +x "$SCRIPT_PATH"
+echo -e "${GREEN}✔ Found iventoy.sh at: $SCRIPT_PATH${NC}"
 
-        # --- 6. Interactive Configuration ---
-        echo -e "${YELLOW}=== STARTING INTERACTIVE DUC CONFIGURATION ===${NC}"
-        echo -e "${YELLOW}${BOLD}!!! ATTENTION: The next step requires manual intervention !!!${NC}"
-        echo "You will need to enter your No-IP username, password, and select the hosts to update."
-        
-        # Only run interactive setup if the config file doesn't exist
-        if [ ! -f "$NOIP_CONFIG" ]; then
-            $NOIP_BIN -C
-        else
-            echo -e "${GREEN}Configuration file already exists ($NOIP_CONFIG). Skipping interactive setup.${NC}"
-            echo -e "${YELLOW}To reconfigure, run: ${BOLD}$NOIP_BIN -C${NC}"
-        fi
+# ------------------------------
+# 7️⃣ Create JSON file
+# ------------------------------
+echo -e "${BLUE}📝 Creating JSON file with executable path...${NC}"
+cat <<EOF > $JSON_FILE
+{
+  "path": "$SCRIPT_PATH"
+}
+EOF
+echo -e "${GREEN}✔ JSON created at $JSON_FILE${NC}"
 
-        # --- 7. Configure Service ---
-        echo -e "${YELLOW}=== CONFIGURING DUC AS A ${INIT_SYSTEM} SERVICE ===${NC}"
+# ------------------------------
+# 8️⃣ Configure Service based on INIT_SYSTEM
+# ------------------------------
+echo -e "${BLUE}⚙️  Configuring service for ${BOLD}$INIT_SYSTEM${NC}${BLUE} ...${NC}"
 
-        if [ "$INIT_SYSTEM" = "systemd" ]; then
-            # systemd service unit file
-            tee $SERVICE_FILE > /dev/null <<EOL
+if [ "$INIT_SYSTEM" = "systemd" ]; then
+    # Configuración para systemd (Ubuntu, Debian, etc.)
+    sudo bash -c "cat <<SYS_EOF > $SERVICE_FILE
 [Unit]
-Description=No-IP Dynamic DNS Update Client
+Description=iVentoy PXE Service
 After=network.target
-
+# ... (systemd content) ...
 [Service]
-# The noip2 client forks itself and then exits.
 Type=forking
-ExecStart=$NOIP_BIN
-# Ensure configuration file is where noip2 expects it.
-Environment=CONFIG_FILE=$NOIP_CONFIG
-PIDFile=/var/run/noip2.pid
-Restart=always
+ExecStart=/bin/bash $SCRIPT_PATH start
+ExecStop=/bin/bash $SCRIPT_PATH stop
+Restart=on-failure
+WorkingDirectory=$(dirname $SCRIPT_PATH)
+User=root
 
 [Install]
 WantedBy=multi-user.target
-EOL
-            # Service Management Commands
-            systemctl daemon-reload
-            systemctl enable --now noip2
-            STATUS_COMMAND="systemctl status noip2"
-            
-        elif [ "$INIT_SYSTEM" = "OpenRC" ]; then
-            # OpenRC init script
-            tee $SERVICE_FILE > /dev/null <<EOL
+SYS_EOF"
+    
+    # 9️⃣ Enable and start service (systemd)
+    echo -e "${BLUE}🚀 Enabling and starting the service (systemd)...${NC}"
+    sudo systemctl daemon-reload
+    sudo systemctl enable iventoy.service
+    sudo systemctl restart iventoy.service
+    
+    STATUS_COMMAND="systemctl status iventoy.service"
+
+elif [ "$INIT_SYSTEM" = "OpenRC" ]; then
+    # Configuración para OpenRC (Alpine Linux)
+    sudo bash -c "cat <<OPENRC_EOF > $SERVICE_FILE
 #!/sbin/openrc-run
 
-name="No-IP DUC"
-description="No-IP Dynamic DNS Update Client"
+# ... (OpenRC content) ...
+name=\"iVentoy PXE Service\"
+description=\"iVentoy PXE Server for network booting\"
 
-# Path to the executable
-command="$NOIP_BIN"
-# Arguments for execution (start the background process)
-command_args=""
-# User to run as (default is root, DUC often runs as root)
-command_user="root"
-# PID file location
-pidfile="/var/run/noip2.pid"
+IVENTOY_SCRIPT=\"$SCRIPT_PATH\"
+WORKDIR=\"\$(dirname \"\$IVENTOY_SCRIPT\")\"
+
+command=\"/bin/bash\"
+command_args=\"\$IVENTOY_SCRIPT start\"
+command_user=\"root\"
+pidfile=\"/var/run/\$RC_SVCNAME.pid\"
 
 start() {
-    ebegin "Starting \$name"
-    # noip2 starts itself and forks. We use start-stop-daemon to manage the PID.
+    ebegin \"Starting \$name\"
+    cd \"\$WORKDIR\"
     start-stop-daemon --start --background --pidfile \$pidfile --exec \$command -- \$command_args
     eend \$?
 }
 
 stop() {
-    ebegin "Stopping \$name"
-    # Use the executable's stop command, which is more reliable than killing based on PID
-    \$command -K
+    ebegin \"Stopping \$name\"
+    /bin/bash \"\$IVENTOY_SCRIPT\" stop
     eend \$?
 }
 
 depend() {
     need net
-    use dns
 }
-EOL
-            chmod +x $SERVICE_FILE
-            
-            # Service Management Commands
-            rc-update add noip2 default
-            rc-service noip2 start
-            STATUS_COMMAND="rc-service noip2 status"
-        fi
+OPENRC_EOF"
 
-        # --- 8. Final Check ---
-        echo -e "${YELLOW}== CHECKING DUC SERVICE STATUS =="
-        $STATUS_COMMAND
-        echo ""
-        echo -e "${GREEN}${BOLD}=== INSTALLATION COMPLETE! ===${NC}"
-        ;;
-    0)
-        echo "Exiting script."
-        exit 0
-        ;;
-    *)
-        echo "Invalid option: $choice. Exiting."
-        exit 1
-        ;;
-esac
+    sudo chmod +x $SERVICE_FILE
+    
+    # 9️⃣ Enable and start service (OpenRC)
+    echo -e "${BLUE}🚀 Enabling and starting the service (OpenRC)...${NC}"
+    sudo rc-update add iventoy default
+    sudo rc-service iventoy start
+    
+    STATUS_COMMAND="rc-service iventoy status"
+fi
+
+# ------------------------------
+# 🔟 Quick verification
+# ------------------------------
+echo -e "${GREEN}🎉 iVentoy successfully installed in $INSTALL_DIR${NC}"
+echo -e "${GREEN}📄 JSON created at $JSON_FILE${NC}"
+echo -e "${GREEN}🔹 Init System used: ${BOLD}$INIT_SYSTEM${NC}"
+echo -e "${GREEN}🔹 Check service status with: ${BOLD}$STATUS_COMMAND${NC}"
+echo -e "${GREEN}🔹 iVentoy will start automatically at boot${NC}"
+echo -e "${GREEN}🔹 To access the PXE Web UI, go to http://x.x.x.x:26000 or localhost:26000${NC}"
 
 }
+
 setup_openvpn () {
 
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
