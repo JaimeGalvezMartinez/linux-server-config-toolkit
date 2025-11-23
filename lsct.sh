@@ -4982,84 +4982,115 @@ shutdown_system() {
 
 PXE_Setup () {
 
-echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo -e "${CYAN}${BOLD}================ Network Bootloader Configuration =================${NC}"
-echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
-echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ===================${NC}"
-echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo ""    
-
-# Colors for messages
+# Define Colors
 RED="\e[31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
 BLUE="\e[34m"
+CYAN="\e[36m"
+BOLD="\e[1m"
 NC="\e[0m" # No color
 
-# Variables
+# Display Banner
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}================ Network Bootloader Configuration =================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
+echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ====================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo ""
+
+# Common Variables
 IVENTOY_VERSION="1.0.19"
 INSTALL_DIR="/opt/iventoy"
 JSON_FILE="$INSTALL_DIR/iventoy.json"
-SERVICE_FILE="/etc/systemd/system/iventoy.service"
 DOWNLOAD_URL="https://github.com/ventoy/PXE/releases/download/v$IVENTOY_VERSION/iventoy-$IVENTOY_VERSION-linux-free.tar.gz"
+
+# 1️⃣ Detect Init System
+if command -v systemctl &> /dev/null; then
+    INIT_SYSTEM="systemd"
+    SERVICE_FILE="/etc/systemd/system/iventoy.service"
+    echo -e "${CYAN}🌍 Detected init system: systemd (e.g., Ubuntu, Debian)${NC}"
+elif command -v rc-service &> /dev/null; then
+    INIT_SYSTEM="OpenRC"
+    SERVICE_FILE="/etc/init.d/iventoy"
+    echo -e "${CYAN}🌍 Detected init system: OpenRC (e.g., Alpine)${NC}"
+else
+    echo -e "${RED}${BOLD}❌ Error: Could not detect a compatible init system (systemd or OpenRC).${NC}"
+    exit 1
+fi
 
 echo -e "${BLUE}🚀 Starting iVentoy PXE installation...${NC}"
 
 # ------------------------------
-# 1️⃣ Stop and clean previous installation and configuration files
+# 2️⃣ Stop and clean previous installation and configuration files
 # ------------------------------
 echo -e "${YELLOW}🔄 Stopping and removing previous configurations...${NC}"
 
-if systemctl is-active --quiet iventoy.service; then
-    echo -e "${YELLOW}Stopping existing service...${NC}"
-    sudo systemctl stop iventoy.service
-fi
-
-if systemctl list-unit-files | grep -q iventoy.service; then
-    echo -e "${YELLOW}Disabling existing service...${NC}"
-    sudo systemctl disable iventoy.service
+if [ "$INIT_SYSTEM" = "systemd" ]; then
+    if systemctl is-active --quiet iventoy.service; then
+        echo -e "${YELLOW}Stopping existing systemd service...${NC}"
+        sudo systemctl stop iventoy.service
+    fi
+    if systemctl list-unit-files | grep -q iventoy.service; then
+        echo -e "${YELLOW}Disabling existing systemd service...${NC}"
+        sudo systemctl disable iventoy.service
+    fi
+elif [ "$INIT_SYSTEM" = "OpenRC" ]; then
+    if rc-service iventoy status 2>/dev/null | grep -q 'started'; then
+        echo -e "${YELLOW}Stopping existing OpenRC service...${NC}"
+        sudo rc-service iventoy stop
+    fi
+    if [ -f "$SERVICE_FILE" ]; then
+        echo -e "${YELLOW}Disabling existing OpenRC service...${NC}"
+        sudo rc-update del iventoy 2>/dev/null
+    fi
 fi
 
 if [ -f "$SERVICE_FILE" ]; then
-    echo -e "${YELLOW}Removing old service file...${NC}"
+    echo -e "${YELLOW}Removing old service file ($SERVICE_FILE)...${NC}"
     sudo rm -f "$SERVICE_FILE"
 fi
 
 if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}Removing previous installation and configuration files...${NC}"
+    echo -e "${YELLOW}Removing previous installation files...${NC}"
     sudo rm -rf "$INSTALL_DIR"
 fi
 
 # ------------------------------
-# 2️⃣ Create installation directory
+# 3️⃣ Create installation directory
 # ------------------------------
 echo -e "${BLUE}📂 Creating installation directory: $INSTALL_DIR${NC}"
 sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
 
 # ------------------------------
-# 3️⃣ Download and extract iVentoy
+# 4️⃣ Download and extract iVentoy
 # ------------------------------
 echo -e "${BLUE}⬇️  Downloading iVentoy version $IVENTOY_VERSION...${NC}"
-wget $DOWNLOAD_URL -O /tmp/iventoy.tar.gz
+# Use curl as a fallback if wget is not installed (common in minimal Alpine images)
+if ! wget -q $DOWNLOAD_URL -O /tmp/iventoy.tar.gz; then
+    echo -e "${YELLOW}Wget failed, attempting with curl...${NC}"
+    curl -L -o /tmp/iventoy.tar.gz $DOWNLOAD_URL
+fi
 
 echo -e "${BLUE}📦 Extracting files into $INSTALL_DIR...${NC}"
 tar -xzf /tmp/iventoy.tar.gz -C $INSTALL_DIR
+sudo rm -f /tmp/iventoy.tar.gz
 
 # ------------------------------
-# 4️⃣ Detect iventoy.sh
+# 5️⃣ Detect iventoy.sh
 # ------------------------------
 SCRIPT_PATH=$(find $INSTALL_DIR -name iventoy.sh | head -n1)
 if [ -z "$SCRIPT_PATH" ]; then
     echo -e "${RED}❌ Error: iventoy.sh was not found after extracting the tar.${NC}"
     exit 1
 fi
-chmod +x "$SCRIPT_PATH"
+sudo chmod +x "$SCRIPT_PATH"
 echo -e "${GREEN}✔ Found iventoy.sh at: $SCRIPT_PATH${NC}"
 
 # ------------------------------
-# 5️⃣ Create JSON file
+# 6️⃣ Create JSON file
 # ------------------------------
 echo -e "${BLUE}📝 Creating JSON file with executable path...${NC}"
 cat <<EOF > $JSON_FILE
@@ -5070,10 +5101,13 @@ EOF
 echo -e "${GREEN}✔ JSON created at $JSON_FILE${NC}"
 
 # ------------------------------
-# 6️⃣ Create systemd service
+# 7️⃣ Configure Service based on INIT_SYSTEM
 # ------------------------------
-echo -e "${BLUE}⚙️  Configuring systemd service...${NC}"
-sudo bash -c "cat <<EOF > $SERVICE_FILE
+echo -e "${BLUE}⚙️  Configuring service for ${BOLD}$INIT_SYSTEM${NC}${BLUE} ...${NC}"
+
+if [ "$INIT_SYSTEM" = "systemd" ]; then
+    # Configuration for systemd (Ubuntu, Debian, etc.)
+    sudo bash -c "cat <<SYS_EOF > $SERVICE_FILE
 [Unit]
 Description=iVentoy PXE Service
 After=network.target
@@ -5088,27 +5122,72 @@ User=root
 
 [Install]
 WantedBy=multi-user.target
-EOF"
+SYS_EOF"
+    
+    # 8️⃣ Enable and start service (systemd)
+    echo -e "${BLUE}🚀 Enabling and starting the service (systemd)...${NC}"
+    sudo systemctl daemon-reload
+    sudo systemctl enable iventoy.service
+    sudo systemctl restart iventoy.service
+    
+    STATUS_COMMAND="systemctl status iventoy.service"
 
-# ------------------------------
-# 7️⃣ Enable and start service
-# ------------------------------
-echo -e "${BLUE}🚀 Enabling and starting the service...${NC}"
-sudo systemctl daemon-reload
-sudo systemctl enable iventoy.service
-sudo systemctl restart iventoy.service
+elif [ "$INIT_SYSTEM" = "OpenRC" ]; then
+    # Configuration for OpenRC (Alpine Linux)
+    sudo bash -c "cat <<OPENRC_EOF > $SERVICE_FILE
+#!/sbin/openrc-run
 
-# ------------------------------
-# 8️⃣ Quick verification
-# ------------------------------
-echo -e "${GREEN}🎉 iVentoy successfully installed in $INSTALL_DIR${NC}"
-echo -e "${GREEN}📄 JSON created at $JSON_FILE${NC}"
-echo -e "${GREEN}🔹 Systemd service active: systemctl status iventoy.service${NC}"
-echo -e "${GREEN}🔹 iVentoy will start automatically at boot${NC}"
-echo -e "${GREEN}🔹 To access the PXE Web UI, go to http://x.x.x.x:26000 or localhost:26000${NC}"
+name=\"iVentoy PXE Service\"
+description=\"iVentoy PXE Server for network booting\"
 
+IVENTOY_SCRIPT=\"$SCRIPT_PATH\"
+WORKDIR=\"\$(dirname \"\$IVENTOY_SCRIPT\")\"
+
+command=\"/bin/bash\"
+command_args=\"\$IVENTOY_SCRIPT start\"
+command_user=\"root\"
+pidfile=\"/var/run/\$RC_SVCNAME.pid\"
+
+start() {
+    ebegin \"Starting \$name\"
+    cd \"\$WORKDIR\"
+    # start-stop-daemon handles running as root and creating the pidfile
+    start-stop-daemon --start --background --pidfile \$pidfile --exec \$command -- \$command_args
+    eend \$?
 }
 
+stop() {
+    ebegin \"Stopping \$name\"
+    # The iVentoy script handles stopping the process
+    /bin/bash \"\$IVENTOY_SCRIPT\" stop
+    eend \$?
+}
+
+depend() {
+    need net
+}
+OPENRC_EOF"
+
+    sudo chmod +x $SERVICE_FILE
+    
+    # 8️⃣ Enable and start service (OpenRC)
+    echo -e "${BLUE}🚀 Enabling and starting the service (OpenRC)...${NC}"
+    sudo rc-update add iventoy default
+    sudo rc-service iventoy start
+    
+    STATUS_COMMAND="rc-service iventoy status"
+fi
+
+# ------------------------------
+# 9️⃣ Quick verification
+# ------------------------------
+echo -e "${GREEN}🎉 iVentoy successfully installed in ${BOLD}$INSTALL_DIR${NC}${GREEN}!${NC}"
+echo -e "${GREEN}🔹 Init System used: ${BOLD}$INIT_SYSTEM${NC}"
+echo -e "${GREEN}🔹 Check service status with: ${BOLD}$STATUS_COMMAND${NC}"
+echo -e "${GREEN}🔹 iVentoy will start automatically on boot.${NC}"
+echo -e "${GREEN}🔹 To access the PXE Web UI, go to ${BOLD}http://x.x.x.x:26000${NC} or ${BOLD}localhost:26000${NC}"
+
+}
 
 # Main Menu
 while true; do
@@ -5143,7 +5222,7 @@ echo "1) Configure network interfaces"
     echo "19) Make Backup or restore backup from ssh server "
     echo "20) Setup OpenVPN (integration with Alpine Linux)"
     echo "21) Setup Wireguard VPN (integration with Alpine Linux)"
-    echo "22) Install Preboot eXecution Environment (PXE) "
+    echo "22) Install Preboot eXecution Environment (PXE) (integration with Alpine Linux) "
 	echo "23) Install Zentyal on Ubuntu 22.04 or lastest"
 	echo "24) Self-Signed TLS/SSL Setup"
 	echo "25) Install Vaultwarden with Docker + Reverse Nginx HTTPS with self-signed certificates"
