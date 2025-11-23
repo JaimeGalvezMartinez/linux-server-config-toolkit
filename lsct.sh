@@ -21,7 +21,125 @@ if [ $EUID -ne 0 ]; then
    exit 1
 fi
 
+install_duc () {
 
+# Author: Jaime Galvez Martinez (Revised & English Version)
+# Description: Automatic and robust installer for the No-IP DUC client.
+# Sets up and enables the client as a systemd service, handling version dynamically.
+
+set -e
+
+# Definitions
+FILE="noip-duc-linux.tar.gz"
+URL="http://www.no-ip.com/client/linux/$FILE"
+
+# --- 1. Root Check ---
+if [ "$EUID" -ne 0 ]; then
+  echo -e "${RED}ERROR: Please run this script with root privileges (using 'sudo ./noip_duc_installer.sh').${NC}"
+  exit 1
+fi
+
+# --- 2. Main Menu ---
+echo -e "
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}================ NO-IP Dynamic DNS Update Client ==================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
+echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ===================${NC}"
+echo -e "${BLUE}${BOLD}===================================================================${NC}"
+echo ""    
+  1: Install No-IP DUC and set up systemd service
+  ${RED}0: Exit${NC}
+-----------------------------------------------
+"
+read -p "Enter option (1 or 0): " choice
+
+case $choice in
+    1)
+        # --- Installation Logic ---
+        echo "Starting installation as root..."
+
+        echo "=== UPDATING THE SYSTEM ==="
+        # Since we are running as root, 'sudo' is not needed for the following commands
+        apt update && apt upgrade -y
+
+        echo "=== INSTALLING REQUIRED DEPENDENCIES ==="
+        # 'build-essential' includes 'make' and 'gcc'
+        apt install -y build-essential libssl-dev
+
+        echo "=== DOWNLOADING AND INSTALLING NO-IP DUC ==="
+        # Change to source directory
+        cd /usr/local/src
+
+        # Download the file, -N for no unnecessary download if already exists. Using -q for quiet output.
+        echo "Downloading $FILE from $URL..."
+        wget -q -N $URL
+
+        # Extract the tarball silently
+        tar xf $FILE
+
+        # Dynamically find the extracted directory (e.g., noip-2.1.9-1)
+        # This makes the script more robust to version changes.
+        NOIP_DIR=$(find . -maxdepth 1 -type d -name "noip-*" -print -quit)
+
+        if [ -z "$NOIP_DIR" ]; then
+            echo "Error: Could not find the 'noip-*' installation directory. Exiting."
+            exit 1
+        fi
+
+        echo "Installation directory found: $NOIP_DIR"
+        cd "$NOIP_DIR"
+
+        # Compile and install
+        make
+        make install
+
+        # --- Enhanced Color Warning Block ---
+        echo -e "${YELLOW}=== STARTING INTERACTIVE DUC CONFIGURATION ===${NC}"
+        echo -e "${YELLOW}${BOLD}!!! ATTENTION: The next step requires manual intervention !!!${NC}"
+        echo "You will need to enter your No-IP username, password, and select the hosts to update."
+        # The No-IP DUC client is configured interactively
+        /usr/local/bin/noip2 -C
+
+        echo "=== CONFIGURING DUC AS A SYSTEMD SERVICE ==="
+        # Create the systemd service unit file
+        tee /etc/systemd/system/noip2.service > /dev/null <<EOL
+[Unit]
+Description=No-IP Dynamic DNS Update Client
+After=network.target
+
+[Service]
+# The noip2 client forks itself and then exits.
+Type=forking
+ExecStart=/usr/local/bin/noip2
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+        echo "=== ENABLING AND STARTING THE SERVICE ==="
+        # Reload the systemd daemon configuration to recognize the new service.
+        systemctl daemon-reload
+        # Enable the service to start on boot and start immediately.
+        systemctl enable --now noip2
+
+        echo "== CHECKING DUC SERVICE STATUS =="
+        # Display service status for confirmation
+        systemctl status noip2
+        
+        echo "=== INSTALLATION COMPLETE! ==="
+        ;;
+    0)
+        echo "Exiting script."
+        exit 0
+        ;;
+    *)
+        echo "Invalid option: $choice. Exiting."
+        exit 1
+        ;;
+esac
+
+}
 setup_openvpn () {
 
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
@@ -5029,8 +5147,9 @@ echo "1) Configure network interfaces"
 	echo "23) Install Zentyal on Ubuntu 22.04 or lastest"
 	echo "24) Self-Signed TLS/SSL Setup"
 	echo "25) Install Vaultwarden with Docker + Reverse Nginx HTTPS with self-signed certificates"
-	echo "26) Reboot System "
-	echo "27) Shutdown System "
+	echo "26) NO-IP Dynamic DNS Update Client Setup"
+	echo "27) Reboot System "
+	echo "28) Shutdown System "
 	echo -e "${RED}${BOLD}0) Exit${NC}"
 read -rp "Choose an option: " opcion
 
@@ -5062,8 +5181,9 @@ read -rp "Choose an option: " opcion
 	23) zentyal_80_setup;;
 	24) setup_autofirmed_https;;
 	25) setup_vaultwarden_in_docker;;
-	26) reboot_system ;;
-	27) shutdown_system ;;
+	26) install_duc ;;
+	27) reboot_system ;;
+	28) shutdown_system ;;
     0) echo "Exiting. Goodbye!"; break ;;
         *) echo "Invalid option." ;;
     esac
