@@ -23,67 +23,104 @@ fi
 
 install_duc () {
 
-# Author: Jaime Galvez Martinez (Revised & English Version)
-# Description: Automatic and robust installer for the No-IP DUC client.
-# Sets up and enables the client as a systemd service, handling version dynamically.
+# Define Colors
+RED="\e[31m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+BLUE="\e[34m"
+CYAN="\e[36m"
+BOLD="\e[1m"
+NC="\e[0m" # No color
 
+# Exit immediately if a command exits with a non-zero status
 set -e
 
-# Definitions
+# Common Variables
 FILE="noip-duc-linux.tar.gz"
 URL="http://www.no-ip.com/client/linux/$FILE"
+NOIP_BIN="/usr/local/bin/noip2"
+NOIP_CONFIG="/usr/local/etc/no-ip2.conf"
 
 # --- 1. Root Check ---
 if [ "$EUID" -ne 0 ]; then
-  echo -e "${RED}ERROR: Please run this script with root privileges (using 'sudo ./noip_duc_installer.sh').${NC}"
-  exit 1
+    echo -e "${RED}ERROR: Please run this script with root privileges (using 'sudo').${NC}"
+    exit 1
 fi
 
-# --- 2. Main Menu ---
-echo -e "
+# --- 2. OS and Init System Detection ---
+# Check for systemd (common on Ubuntu, Debian, etc.)
+if command -v systemctl &> /dev/null; then
+    INIT_SYSTEM="systemd"
+    PACKAGE_MANAGER="apt"
+    SERVICE_FILE="/etc/systemd/system/noip2.service"
+    # Dependencies for compilation on Debian/Ubuntu
+    BUILD_DEPS="build-essential libssl-dev"
+    echo -e "${CYAN}🌍 Detected system: Ubuntu/Debian compatible (systemd)${NC}"
+
+# Check for OpenRC and APK (common on Alpine Linux)
+elif command -v rc-service &> /dev/null && command -v apk &> /dev/null; then
+    INIT_SYSTEM="OpenRC"
+    PACKAGE_MANAGER="apk"
+    SERVICE_FILE="/etc/init.d/noip2"
+    # Dependencies for compilation on Alpine
+    BUILD_DEPS="build-base openssl-dev wget tar"
+    echo -e "${CYAN}🌍 Detected system: Alpine Linux (OpenRC)${NC}"
+else
+    echo -e "${RED}${BOLD}❌ Error: Could not detect a compatible init system (systemd or OpenRC) or package manager (apt/apk).${NC}"
+    exit 1
+fi
+
+# --- 3. Main Menu ---
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
 echo -e "${CYAN}${BOLD}================ NO-IP Dynamic DNS Update Client ==================${NC}"
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
 echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
-echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ===================${NC}"
+echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ====================${NC}"
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo ""    
-  1: Install No-IP DUC and set up systemd service
-  ${RED}0: Exit${NC}
------------------------------------------------
-"
+echo ""
+echo -e " 1: Install No-IP DUC and set up ${INIT_SYSTEM} service"
+echo -e " ${RED}0: Exit${NC}"
+echo -e "-----------------------------------------------"
 read -p "Enter option (1 or 0): " choice
 
 case $choice in
     1)
-        # --- Installation Logic ---
-        echo "Starting installation as root..."
+        echo -e "${GREEN}Starting installation for ${INIT_SYSTEM} system...${NC}"
 
-        echo "=== UPDATING THE SYSTEM ==="
-        # Since we are running as root, 'sudo' is not needed for the following commands
-        apt update && apt upgrade -y
+        # --- 4. Package Installation ---
+        echo -e "${YELLOW}=== UPDATING PACKAGE LISTS AND INSTALLING DEPENDENCIES ===${NC}"
+        
+        if [ "$PACKAGE_MANAGER" = "apt" ]; then
+            apt update
+            apt install -y $BUILD_DEPS
+        elif [ "$PACKAGE_MANAGER" = "apk" ]; then
+            apk update
+            # --no-cache is good practice for Alpine
+            apk add --no-cache $BUILD_DEPS
+        fi
 
-        echo "=== INSTALLING REQUIRED DEPENDENCIES ==="
-        # 'build-essential' includes 'make' and 'gcc'
-        apt install -y build-essential libssl-dev
+        # --- 5. Download and Compile ---
+        echo -e "${YELLOW}=== DOWNLOADING AND INSTALLING NO-IP DUC ===${NC}"
+        
+        # Create a temporary source directory and navigate into it
+        mkdir -p /usr/local/src/noip_temp
+        cd /usr/local/src/noip_temp
 
-        echo "=== DOWNLOADING AND INSTALLING NO-IP DUC ==="
-        # Change to source directory
-        cd /usr/local/src
-
-        # Download the file, -N for no unnecessary download if already exists. Using -q for quiet output.
         echo "Downloading $FILE from $URL..."
-        wget -q -N $URL
+        # Use curl as a robust alternative if wget is not installed or fails
+        if ! command -v wget &> /dev/null || ! wget -q -N $URL; then
+            echo "Wget not found or failed. Attempting with curl..."
+            curl -L -o $FILE $URL
+        fi
 
-        # Extract the tarball silently
+        # Extract the tarball
         tar xf $FILE
 
-        # Dynamically find the extracted directory (e.g., noip-2.1.9-1)
-        # This makes the script more robust to version changes.
+        # Dynamically find the extracted directory
         NOIP_DIR=$(find . -maxdepth 1 -type d -name "noip-*" -print -quit)
 
         if [ -z "$NOIP_DIR" ]; then
-            echo "Error: Could not find the 'noip-*' installation directory. Exiting."
+            echo -e "${RED}Error: Could not find the 'noip-*' installation directory. Exiting.${NC}"
             exit 1
         fi
 
@@ -94,16 +131,29 @@ case $choice in
         make
         make install
 
-        # --- Enhanced Color Warning Block ---
+        # Clean up source files
+        cd /usr/local/src
+        rm -rf noip_temp
+
+        # --- 6. Interactive Configuration ---
         echo -e "${YELLOW}=== STARTING INTERACTIVE DUC CONFIGURATION ===${NC}"
         echo -e "${YELLOW}${BOLD}!!! ATTENTION: The next step requires manual intervention !!!${NC}"
         echo "You will need to enter your No-IP username, password, and select the hosts to update."
-        # The No-IP DUC client is configured interactively
-        /usr/local/bin/noip2 -C
+        
+        # Only run interactive setup if the config file doesn't exist
+        if [ ! -f "$NOIP_CONFIG" ]; then
+            $NOIP_BIN -C
+        else
+            echo -e "${GREEN}Configuration file already exists ($NOIP_CONFIG). Skipping interactive setup.${NC}"
+            echo -e "${YELLOW}To reconfigure, run: ${BOLD}$NOIP_BIN -C${NC}"
+        fi
 
-        echo "=== CONFIGURING DUC AS A SYSTEMD SERVICE ==="
-        # Create the systemd service unit file
-        tee /etc/systemd/system/noip2.service > /dev/null <<EOL
+        # --- 7. Configure Service ---
+        echo -e "${YELLOW}=== CONFIGURING DUC AS A ${INIT_SYSTEM} SERVICE ===${NC}"
+
+        if [ "$INIT_SYSTEM" = "systemd" ]; then
+            # systemd service unit file
+            tee $SERVICE_FILE > /dev/null <<EOL
 [Unit]
 Description=No-IP Dynamic DNS Update Client
 After=network.target
@@ -111,23 +161,69 @@ After=network.target
 [Service]
 # The noip2 client forks itself and then exits.
 Type=forking
-ExecStart=/usr/local/bin/noip2
+ExecStart=$NOIP_BIN
+# Ensure configuration file is where noip2 expects it.
+Environment=CONFIG_FILE=$NOIP_CONFIG
+PIDFile=/var/run/noip2.pid
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOL
+            # Service Management Commands
+            systemctl daemon-reload
+            systemctl enable --now noip2
+            STATUS_COMMAND="systemctl status noip2"
+            
+        elif [ "$INIT_SYSTEM" = "OpenRC" ]; then
+            # OpenRC init script
+            tee $SERVICE_FILE > /dev/null <<EOL
+#!/sbin/openrc-run
 
-        echo "=== ENABLING AND STARTING THE SERVICE ==="
-        # Reload the systemd daemon configuration to recognize the new service.
-        systemctl daemon-reload
-        # Enable the service to start on boot and start immediately.
-        systemctl enable --now noip2
+name="No-IP DUC"
+description="No-IP Dynamic DNS Update Client"
 
-        echo "== CHECKING DUC SERVICE STATUS =="
-        # Display service status for confirmation
-        systemctl status noip2
-        
-        echo "=== INSTALLATION COMPLETE! ==="
+# Path to the executable
+command="$NOIP_BIN"
+# Arguments for execution (start the background process)
+command_args=""
+# User to run as (default is root, DUC often runs as root)
+command_user="root"
+# PID file location
+pidfile="/var/run/noip2.pid"
+
+start() {
+    ebegin "Starting \$name"
+    # noip2 starts itself and forks. We use start-stop-daemon to manage the PID.
+    start-stop-daemon --start --background --pidfile \$pidfile --exec \$command -- \$command_args
+    eend \$?
+}
+
+stop() {
+    ebegin "Stopping \$name"
+    # Use the executable's stop command, which is more reliable than killing based on PID
+    \$command -K
+    eend \$?
+}
+
+depend() {
+    need net
+    use dns
+}
+EOL
+            chmod +x $SERVICE_FILE
+            
+            # Service Management Commands
+            rc-update add noip2 default
+            rc-service noip2 start
+            STATUS_COMMAND="rc-service noip2 status"
+        fi
+
+        # --- 8. Final Check ---
+        echo -e "${YELLOW}== CHECKING DUC SERVICE STATUS =="
+        $STATUS_COMMAND
+        echo ""
+        echo -e "${GREEN}${BOLD}=== INSTALLATION COMPLETE! ===${NC}"
         ;;
     0)
         echo "Exiting script."
