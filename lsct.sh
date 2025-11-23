@@ -3605,6 +3605,7 @@ echo -e "${BLUE}${BOLD}=========================================================
 echo "Please access ${BOLD}${WWWROOT}${NC} to complete the final setup in the browser."
 echo "---------------------------------------------------------------------"
 
+}
 
 wp_install() {
 
