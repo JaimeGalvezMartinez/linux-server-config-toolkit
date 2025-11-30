@@ -4293,7 +4293,7 @@ while true; do
 done
 }
 
-menu_system_information() {
+show_system_info() {
     while true; do
         clear
         echo -e "${CYAN}"
