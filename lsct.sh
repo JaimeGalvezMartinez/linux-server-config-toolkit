@@ -23,6 +23,28 @@ fi
 
 
 menu_network_diagnostics() {
+
+# Función para pausar la ejecución hasta que el usuario presione Enter.
+pause() {
+    echo
+    read -p "Press [Enter] for continue..."
+}
+
+# Función para mostrar un mensaje de error.
+error() {
+    echo -e "\n${RED}!!! ERROR: $1${NC}" >&2
+}
+
+# Función para mostrar un mensaje de advertencia (warning).
+warning() {
+    echo -e "\n${YELLOW}!!! WARNING: $1${NC}"
+}
+
+# Función para mostrar un mensaje de éxito.
+success() {
+    echo -e "\n${GREEN}✓ $1${NC}"
+}
+
     while true; do
         clear
         echo -e "${CYAN}"
