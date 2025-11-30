@@ -4311,7 +4311,7 @@ show_system_info() {
         echo "7)  Distribution Information"
         echo "8)  Complete System Summary"
         echo
-        echo "0)  RETURN TO MAIN MENU"
+         echo -e "${RED}0)  RETURN TO MAIN MENU${NC}"
         echo
         
         read -p "Select an option [0-8]: " option
