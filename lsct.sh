@@ -4328,7 +4328,6 @@ show_system_info() {
             0) return ;;
             *)  
                 error "Invalid option: $option"
-                pause 
                 ;;
         esac
     done
@@ -4367,7 +4366,7 @@ info_basic_system() {
     echo "Kernel: $(uname -r)"
     echo "System: $(uname -s)"
     
-    pause
+
 }
 
 info_detailed_processor() {
@@ -4511,8 +4510,6 @@ info_detailed_processor() {
             fi
         done | head -8
     fi
-    
-    pause
 }
 
 info_ram_memory() {
@@ -4539,7 +4536,7 @@ info_ram_memory() {
     echo -e "\n${YELLOW}■ MEMORY USAGE BY PROCESS (TOP 10):${NC}"
     ps aux --sort=-%mem | head -11 | awk '{printf "%-10s %-8s %-10s\n", $11, $2, $4}' | column -t
     
-    pause
+    
 }
 
 info_storage() {
@@ -4593,7 +4590,7 @@ info_storage() {
         echo "Directory /home not found"
     fi
     
-    pause
+    
 }
 
 info_complete_hardware() {
@@ -4628,7 +4625,7 @@ info_complete_hardware() {
         echo "Install 'lm-sensors': sudo apt install lm-sensors"
     fi
     
-    pause
+    
 }
 
 logs_login_sessions() {
@@ -4656,7 +4653,7 @@ logs_login_sessions() {
         echo "Authentication logs not found"
     fi
     
-    pause
+
 }
 
 info_distribution() {
@@ -4695,7 +4692,7 @@ info_distribution() {
         echo "Install 'lsb-release': sudo apt install lsb-release"
     fi
     
-    pause
+
 }
 
 complete_system_summary() {
@@ -4739,7 +4736,7 @@ complete_system_summary() {
     echo -e "\n${YELLOW}Contents of the summary:${NC}"
     cat "$resumen_file"
     
-    pause
+    
 }
 
 # Función para gestionar Certbot (instalar, ver, eliminar)
