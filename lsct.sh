@@ -4293,122 +4293,454 @@ while true; do
 done
 }
 
-show_system_info () {
-# Show a welcome message
-echo "*******************************************************************"
-echo "****** MONITORING CPU, MEMORY, DISK AND NETWORK INFORMATION *******"
-echo "*******************************************************************"
-
-echo "To run this script successfully, please ensure 'curl' is installed. You can install it using: 'snap install curl' or 'apt install curl'"
-echo
-
-# Function to get the hostname
-get_HOSTNAME() {
-    HOSTNAME=$(cat /etc/hostname)
+menu_system_information() {
+    while true; do
+        clear
+        echo -e "${CYAN}"
+        echo "==================================================="
+        echo "           SYSTEM INFORMATION"
+        echo "==================================================="
+        echo -e "${NC}"
+        
+        echo "1)  Basic System Information"
+        echo "2)  Detailed Processor Information"
+        echo "3)  RAM Memory Information"
+        echo "4)  Storage Information"
+        echo "5)  Complete Hardware Information"
+        echo "6)  Login Logs"
+        echo "7)  Distribution Information"
+        echo "8)  Complete System Summary"
+        echo
+        echo "0)  RETURN TO MAIN MENU"
+        echo
+        
+        read -p "Select an option [0-8]: " option
+        
+        case $option in
+            1) info_basic_system ;;
+            2) info_detailed_processor ;;
+            3) info_ram_memory ;;
+            4) info_storage ;;
+            5) info_complete_hardware ;;
+            6) logs_login_sessions ;;
+            7) info_distribution ;;
+            8) complete_system_summary ;;
+            0) return ;;
+            *)  
+                error "Invalid option: $option"
+                pause 
+                ;;
+        esac
+    done
 }
 
-# Function to get CPU usage
-get_cpu_usage() {
-    echo "CPU USAGE:"
-    top -bn1 | grep "Cpu(s)" | awk '{printf "CPU in use: %.2f%%\n", $2 + $4}'
+# =========================================
+# SYSTEM INFORMATION FUNCTIONS
+# =========================================
+
+info_basic_system() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "          BASIC SYSTEM INFORMATION"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ GENERAL INFORMATION:${NC}"
+    echo "Hostname: $(hostname)"
+    echo "Current user: $(whoami)"
+    echo "Shell: $SHELL"
+    echo "User ID: $(id -u)"
+    echo "Groups: $(id -Gn)"
+    
+    echo -e "\n${YELLOW}■ UPTIME:${NC}"
+    echo "Powered on since: $(uptime -s 2>/dev/null || echo 'N/A')"
+    echo "Active time: $(uptime -p 2>/dev/null || echo 'N/A')"
+    echo "Current date/time: $(date)"
+    
+    echo -e "\n${YELLOW}■ SYSTEM LOAD:${NC}"
+    echo "Average load: $(cat /proc/loadavg 2>/dev/null || echo 'N/A')"
+    echo "Active processes: $(ps -e --no-headers | wc -l)"
+    
+    echo -e "\n${YELLOW}■ ARCHITECTURE:${NC}"
+    echo "Architecture: $(uname -m)"
+    echo "Kernel: $(uname -r)"
+    echo "System: $(uname -s)"
+    
+    pause
 }
 
-# Function to get memory usage in GB
-get_memory_usage() {
-    echo "MEMORY USAGE:"
-    free -m | grep Mem | awk '{printf "Memory used: %.2fGB of %.2fGB\n", $3/1024, $2/1024}'
-}
-
-# Function to get disk usage
-get_disk_usage() {
-    echo "DISK USAGE:"
-    df -h / | grep / | awk '{print "Disk usage: " $5 " (" $3 " used of " $2 ")"}'
-}
-
-# Function to get swap memory usage
-get_swap_usage() {
-    echo "SWAP USAGE:"
-    free -m | grep Swap | awk '{printf "Swap used: %.2fGB of %.2fGB\n", $3/1024, $2/1024}'
-}
-
-# Function to get the network interface in use
-get_network_interface() {
-    interfaz=$(ip route | grep '^default' | awk '{print $5}')
-    if [[ -z "$interfaz" ]]; then
-        echo "A network interface could not be detected."
-        return 1
-    fi
-    echo "Your network interface is: $interfaz"
-}
-
-# Function to get local IP
-get_local_ip() {
-    echo "LOCAL IP:"
-    hostname -I
-}
-
-# Function to get MAC address
-get_DIR_MAC() {
-    echo "MAC ADDRESS:"
-    interfaz=$(ip route | grep '^default' | awk '{print $5}')
-    cat /sys/class/net/$interfaz/address
-}
-
-# Function to get the default gateway
-get_DEFAULT_GATEWAY() {
-    echo "DEFAULT GATEWAY:"
-    ip route show default
-}
-
-# Function to get the public IP
-get_public_ip() {
-    echo "PUBLIC IP:"
-    PUBLIC_IP=$(curl -s ifconfig.me)
-    if [[ -n "$PUBLIC_IP" ]]; then
-        echo -e "${GREEN}${BOLD}Public IP: $PUBLIC_IP..${NC}"
+info_detailed_processor() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "        DETAILED PROCESSOR INFORMATION"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    if [[ -f /proc/cpuinfo ]]; then
+        echo -e "${YELLOW}■ CPU INFORMATION:${NC}"
+        local model_name=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ *//')
+        local physical_sockets=$(grep "physical id" /proc/cpuinfo | sort | uniq | wc -l)
+        local cores_per_cpu=$(grep "cpu cores" /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ *//')
+        local total_physical_cores=$((physical_sockets * cores_per_cpu))
+        local logical_cores=$(nproc)
+        
+        # Safely calculate threads per core
+        local threads_per_core=0
+        if [[ $total_physical_cores -gt 0 ]]; then
+            threads_per_core=$((logical_cores / total_physical_cores))
+        fi
+        
+        echo "Model: $model_name"
+        echo "Physical cores: $total_physical_cores"
+        echo "Logical cores: $logical_cores"
+        if [[ $threads_per_core -gt 0 ]]; then
+            echo "Threads per core: $threads_per_core"
+        else
+            echo "Threads per core: N/A"
+        fi
+        echo "Physical sockets: $physical_sockets"
+        
+        echo -e "\n${YELLOW}■ FREQUENCIES:${NC}"
+        # Method for Spanish/English systems
+        local min_freq=$(lscpu 2>/dev/null | grep -i "mhz mín\|min mhz" | cut -d: -f2 | sed 's/^ *//' | head -1 | cut -d, -f1)
+        local max_freq=$(lscpu 2>/dev/null | grep -i "mhz máx\|max mhz" | cut -d: -f2 | sed 's/^ *//' | head -1 | cut -d, -f1)
+        local current_freq=$(grep "cpu MHz" /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ *//' | cut -d. -f1)
+        
+        # Use sysfs as fallback
+        if [[ -z "$min_freq" ]] && [[ -d /sys/devices/system/cpu/cpu0/cpufreq ]]; then
+            min_freq=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq 2>/dev/null)
+            min_freq=$((min_freq / 1000))
+            max_freq=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null)
+            max_freq=$((max_freq / 1000))
+        fi
+        
+        echo "Current frequency: ${current_freq} MHz"
+        echo "Minimum frequency: ${min_freq} MHz"
+        echo "Maximum frequency: ${max_freq} MHz"
+        
+        echo -e "\n${YELLOW}■ CACHE:${NC}"
+        # Get cache using getconf
+        local l1d=$(getconf LEVEL1_DCACHE_SIZE 2>/dev/null)
+        local l1i=$(getconf LEVEL1_ICACHE_SIZE 2>/dev/null)
+        local l2=$(getconf LEVEL2_CACHE_SIZE 2>/dev/null)
+        local l3=$(getconf LEVEL3_CACHE_SIZE 2>/dev/null)
+        
+        # Convert and format
+        if [[ -n "$l1d" ]] && [[ $l1d -gt 0 ]]; then
+            l1d=$((l1d / 1024))" KB"
+        else
+            l1d="N/A"
+        fi
+        
+        if [[ -n "$l1i" ]] && [[ $l1i -gt 0 ]]; then
+            l1i=$((l1i / 1024))" KB"
+        else
+            l1i="N/A"
+        fi
+        
+        if [[ -n "$l2" ]] && [[ $l2 -gt 0 ]]; then
+            if [[ $l2 -ge 1048576 ]]; then
+                l2=$((l2 / 1024 / 1024))" MB"
+            else
+                l2=$((l2 / 1024))" KB"
+            fi
+        else
+            l2="N/A"
+        fi
+        
+        if [[ -n "$l3" ]] && [[ $l3 -gt 0 ]]; then
+            if [[ $l3 -ge 1048576 ]]; then
+                l3=$((l3 / 1024 / 1024))" MB"
+            else
+                l3=$((l3 / 1024))" KB"
+            fi
+        else
+            l3="N/A"
+        fi
+        
+        echo "L1d Cache: $l1d"
+        echo "L1i Cache: $l1i"
+        echo "L2 Cache: $l2"
+        echo "L3 Cache: $l3"
+        
     else
-        echo -e "${RED}${BOLD}Could not obtain your Public IP Address. Check your Internet connection...${NC}"
+        error "Could not get processor information"
     fi
+    
+    echo -e "\n${YELLOW}■ ARCHITECTURE AND INSTRUCTIONS:${NC}"
+    # Architecture information
+    local architecture=$(lscpu 2>/dev/null | grep -i "architecture" | cut -d: -f2 | sed 's/^ *//')
+    local virtualization=$(lscpu 2>/dev/null | grep -i "virtualization" | cut -d: -f2 | sed 's/^ *//')
+    
+    echo "Architecture: ${architecture:-N/A}"
+    echo "Virtualization: ${virtualization:-N/A}"
+    
+    # Show some important flags
+    echo -e "\n${YELLOW}■ IMPORTANT EXTENSIONS:${NC}"
+    if [[ -f /proc/cpuinfo ]]; then
+        local flags=$(grep "flags" /proc/cpuinfo | head -1 | cut -d: -f2)
+        important_flags=("avx" "avx2" "sse" "sse2" "aes" "vmx" "svm" "ht" "hypervisor")
+        for flag in "${important_flags[@]}"; do
+            if echo "$flags" | grep -qi "$flag"; then
+                echo -e "  ${GREEN}✓${NC} $flag"
+            else
+                echo -e "  ${RED}✗${NC} $flag"
+            fi
+        done
+    fi
+    
+    echo -e "\n${YELLOW}■ CORE STATUS:${NC}"
+    # Show frequency status of each core
+    if [[ -d /sys/devices/system/cpu ]]; then
+        echo "Online cores: $(cat /sys/devices/system/cpu/online 2>/dev/null || echo 'N/A')"
+        echo "Possible cores: $(cat /sys/devices/system/cpu/possible 2>/dev/null || echo 'N/A')"
+        
+        # Show current frequency per core
+        echo -e "\nFrequencies per core:"
+        for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
+            if [[ -f "$cpu/cpufreq/scaling_cur_freq" ]]; then
+                cpu_num=$(basename "$cpu" | sed 's/cpu//')
+                freq=$(cat "$cpu/cpufreq/scaling_cur_freq" 2>/dev/null)
+                if [[ -n "$freq" ]] && [[ $freq -gt 0 ]]; then
+                    freq=$((freq / 1000))
+                    gov=$(cat "$cpu/cpufreq/scaling_governor" 2>/dev/null || echo "N/A")
+                    echo "  CPU$cpu_num: ${freq} MHz [${gov}]"
+                fi
+            fi
+        done | head -8
+    fi
+    
+    pause
 }
 
-# Function to check internet connection
-get_INTERNET_CONNECTION() {
-    echo "INTERNET CONNECTION:"
-    var=$(curl -s --head http://www.google.com | head -n 1)
-    if [[ $var == *"200 OK"* ]]; then
-   echo -e "${GREEN}${BOLD}Internet Connection: Active${NC}"
+info_ram_memory() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "          RAM MEMORY INFORMATION"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ MAIN MEMORY:${NC}"
+    free -h
+    
+    echo -e "\n${YELLOW}■ MEMORY DETAILS:${NC}"
+    if command -v dmidecode >/dev/null 2>&1; then
+        echo "=== INSTALLED PHYSICAL MEMORY ==="
+        sudo dmidecode --type memory 2>/dev/null | grep -E "(Size|Type|Speed|Manufacturer|Locator)" | grep -v "No Module" | head -20
     else
-        echo -e "${RED}${BOLD}No internet connection detected. Please check your network adapter and rerun the script.${NC}"
+        warning "Install 'dmidecode' for detailed information: sudo apt install dmidecode"
+        echo "Basic information from /proc/meminfo:"
+        grep -E "(MemTotal|MemFree|MemAvailable|SwapTotal|SwapFree)" /proc/meminfo
     fi
+    
+    echo -e "\n${YELLOW}■ MEMORY USAGE BY PROCESS (TOP 10):${NC}"
+    ps aux --sort=-%mem | head -11 | awk '{printf "%-10s %-8s %-10s\n", $11, $2, $4}' | column -t
+    
+    pause
 }
 
-# Get system information
-echo "-----------------------------------"
-echo "The Hostname of the system is: $HOSTNAME"
-echo "-----------------------------------"
-get_cpu_usage
-echo "-----------------------------------"
-get_memory_usage
-echo "-----------------------------------"
-get_disk_usage
-echo "-----------------------------------"
-get_swap_usage
-echo "-----------------------------------"
-get_network_interface
-echo "-----------------------------------"
-get_local_ip
-echo "-----------------------------------"
-get_DIR_MAC
-echo "-----------------------------------"
-get_DEFAULT_GATEWAY
-echo "-----------------------------------"
-get_public_ip
-echo "-----------------------------------"
-get_INTERNET_CONNECTION
-echo "-----------------------------------"
+info_storage() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "          STORAGE INFORMATION"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ CONNECTED DRIVES:${NC}"
+    lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL
+    
+    echo -e "\n${YELLOW}■ DISK SPACE:${NC}"
+    df -h | grep -v tmpfs
+    
+    echo -e "\n${YELLOW}■ DETAILED INFORMATION:${NC}"
+    for disk in $(lsblk -d -o NAME | grep -v NAME); do
+        echo "=== DISK: /dev/$disk ==="
+        local model=$(lsblk -d -o MODEL /dev/$disk 2>/dev/null | tail -1)
+        local size=$(lsblk -d -o SIZE /dev/$disk 2>/dev/null | tail -1)
+        local type=$(lsblk -d -o TYPE /dev/$disk 2>/dev/null | tail -1)
+        local transport=$(lsblk -d -o TRAN /dev/$disk 2>/dev/null | tail -1)
+        
+        echo "Model: $model"
+        echo "Size: $size"
+        echo "Type: $type"
+        echo "Interface: $transport"
+        
+        # Detect storage type
+        if [[ "$transport" == "nvme" ]]; then
+            echo "Technology: NVMe SSD"
+        elif [[ "$transport" == "sata" ]]; then
+            # Attempt to detect if it's SSD or HDD
+            if [[ -f /sys/block/$disk/queue/rotational ]]; then
+                local rotational=$(cat /sys/block/$disk/queue/rotational 2>/dev/null)
+                if [[ "$rotational" == "0" ]]; then
+                    echo "Technology: SSD"
+                else
+                    echo "Technology: HDD"
+                fi
+            fi
+        fi
+        echo
+    done
+    
+    echo -e "${YELLOW}■ SPACE USAGE IN /home:${NC}"
+    if [[ -d /home ]]; then
+        sudo du -h --max-depth=1 /home 2>/dev/null | sort -hr | head -10
+    else
+        echo "Directory /home not found"
+    fi
+    
+    pause
+}
 
+info_complete_hardware() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "        COMPLETE HARDWARE INFORMATION"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ SYSTEM SUMMARY:${NC}"
+    if command -v lshw >/dev/null 2>&1; then
+        sudo lshw -short 2>/dev/null | head -20
+    else
+        warning "Install 'lshw' for complete information: sudo apt install lshw"
+        echo "Basic information available:"
+        echo "CPU: $(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ *//')"
+        echo "Memory: $(free -h | grep Mem | awk '{print $2}')"
+        echo "Architecture: $(uname -m)"
+    fi
+    
+    echo -e "\n${YELLOW}■ PCI CARDS:${NC}"
+    lspci 2>/dev/null | head -15
+    
+    echo -e "\n${YELLOW}■ USB DEVICES:${NC}"
+    lsusb 2>/dev/null | head -10
+    
+    echo -e "\n${YELLOW}■ TEMPERATURE SENSORS:${NC}"
+    if command -v sensors >/dev/null 2>&1; then
+        sensors 2>/dev/null | head -10
+    else
+        echo "Install 'lm-sensors': sudo apt install lm-sensors"
+    fi
+    
+    pause
+}
 
-} 
+logs_login_sessions() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "           LOGIN SESSION LOGS"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ LATEST LOGIN SESSIONS:${NC}"
+    echo "=== LAST 20 RECORDS ==="
+    last -20
+    
+    echo -e "\n${YELLOW}■ CURRENT SESSIONS:${NC}"
+    who
+    
+    echo -e "\n${YELLOW}■ RECENT LOGIN ATTEMPTS:${NC}"
+    if [[ -f /var/log/auth.log ]]; then
+        echo "=== LAST LOGIN ATTEMPTS ==="
+        sudo grep -E "(session opened|session closed|authentication failure)" /var/log/auth.log 2>/dev/null | tail -15
+    elif [[ -f /var/log/secure ]]; then
+        sudo grep -E "(session opened|session closed|authentication failure)" /var/log/secure 2>/dev/null | tail -15
+    else
+        echo "Authentication logs not found"
+    fi
+    
+    pause
+}
+
+info_distribution() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "         DISTRIBUTION INFORMATION"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    if [[ -f /etc/os-release ]]; then
+        echo -e "${YELLOW}■ OPERATING SYSTEM INFORMATION:${NC}"
+        source /etc/os-release
+        echo "Name: $NAME"
+        echo "Version: $VERSION"
+        echo "ID: $ID"
+        echo "ID Like: $ID_LIKE"
+        echo "Version ID: $VERSION_ID"
+        echo "Pretty Name: $PRETTY_NAME"
+        echo "Home URL: $HOME_URL"
+        echo "Support URL: $SUPPORT_URL"
+        echo "Bug Report URL: $BUG_REPORT_URL"
+    else
+        error "Could not get distribution information"
+    fi
+    
+    echo -e "\n${YELLOW}■ DESKTOP INFORMATION:${NC}"
+    echo "Session: $DESKTOP_SESSION"
+    echo "DE: $XDG_CURRENT_DESKTOP"
+    echo "Shell: $SHELL"
+    
+    echo -e "\n${YELLOW}■ SYSTEM VERSION:${NC}"
+    if command -v lsb_release >/dev/null 2>&1; then
+        lsb_release -a 2>/dev/null
+    else
+        echo "Install 'lsb-release': sudo apt install lsb-release"
+    fi
+    
+    pause
+}
+
+complete_system_summary() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "        COMPLETE SYSTEM SUMMARY"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    local resumen_file="/tmp/system_summary_$(date +%H%M%S).log"
+    
+    echo "Generating complete summary..."
+    echo "=== COMPLETE SYSTEM SUMMARY ===" > "$resumen_file"
+    echo "Date: $(date)" >> "$resumen_file"
+    echo "User: $(whoami)" >> "$resumen_file"
+    echo "Hostname: $(hostname)" >> "$resumen_file"
+    
+    echo -e "\n■ BASIC INFORMATION:" >> "$resumen_file"
+    echo "Kernel: $(uname -r)" >> "$resumen_file"
+    echo "Architecture: $(uname -m)" >> "$resumen_file"
+    echo "Active time: $(uptime -p)" >> "$resumen_file"
+    
+    echo -e "\n■ CPU:" >> "$resumen_file"
+    grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ *//' >> "$resumen_file"
+    echo "Cores: $(nproc)" >> "$resumen_file"
+    
+    echo -e "\n■ MEMORY:" >> "$resumen_file"
+    free -h >> "$resumen_file"
+    
+    echo -e "\n■ STORAGE:" >> "$resumen_file"
+    df -h >> "$resumen_file"
+    
+    echo -e "\n■ DISTRIBUTION:" >> "$resumen_file"
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        echo "$PRETTY_NAME" >> "$resumen_file"
+    fi
+    
+    success "Summary saved to: $resumen_file"
+    echo -e "\n${YELLOW}Contents of the summary:${NC}"
+    cat "$resumen_file"
+    
+    pause
+}
 
 # Función para gestionar Certbot (instalar, ver, eliminar)
 manage_certbot() {
