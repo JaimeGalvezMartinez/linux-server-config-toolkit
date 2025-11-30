@@ -4294,6 +4294,36 @@ done
 }
 
 show_system_info() {
+
+# Colores ANSI
+CYAN='\033[0;36m'
+YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # Sin Color (Normal Color)
+
+# --- Funciones de Utilidad ---
+
+# Función para pausar la ejecución hasta que el usuario presione Enter.
+pause() {
+    echo
+    read -p "Press [Enter] for continue..."
+}
+
+# Función para mostrar un mensaje de error.
+error() {
+    echo -e "\n${RED}!!! ERROR: $1${NC}" >&2
+}
+
+# Función para mostrar un mensaje de advertencia (warning).
+warning() {
+    echo -e "\n${YELLOW}!!! ADVERTENCIA: $1${NC}"
+}
+
+# Función para mostrar un mensaje de éxito.
+success() {
+    echo -e "\n${GREEN}✓ $1${NC}"
+}
     while true; do
         clear
         echo -e "${CYAN}"
