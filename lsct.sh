@@ -21,6 +21,548 @@ if [ $EUID -ne 0 ]; then
    exit 1
 fi
 
+
+menu_network_diagnostics() {
+    while true; do
+        clear
+        echo -e "${CYAN}"
+        echo "==================================================="
+        echo "               NETWORK DIAGNOSTICS"
+        echo "==================================================="
+        echo -e "${NC}"
+        
+        echo "1)  Network Interface Information"
+        echo "2)  Basic Connectivity Test"
+        echo "3)  Network Speed Test"
+        echo "4)  Port Analysis"
+        echo "5)  Complete Network Diagnosis"
+        echo "6)  Network Statistics"
+        echo "7)  DNS Configuration"
+        echo "8)  DNS Flush and Network Restart"
+        echo
+        echo "0)  RETURN TO MAIN MENU"
+        echo
+        
+        read -p "Select an option [0-8]: " option
+        
+        case $option in
+            1) info_network_interfaces ;;
+            2) test_basic_connectivity ;;
+            3) test_network_speed ;;
+            4) analyze_ports ;;
+            5) complete_network_diagnosis ;;
+            6) network_statistics ;;
+            7) dns_configuration ;;
+            8) flush_dns_and_restart ;;
+            0) return ;;
+            *)  
+                error "Invalid option: $option"
+                pause 
+                ;;
+        esac
+    done
+}
+
+# =========================================
+# NETWORK DIAGNOSTIC FUNCTIONS
+# =========================================
+
+info_network_interfaces() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "          NETWORK INTERFACE INFORMATION"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ DETECTED NETWORK INTERFACES:${NC}"
+    # Shows IP addresses, status, and device names
+    ip addr show
+    
+    echo -e "\n${YELLOW}■ ROUTING TABLE:${NC}"
+    # Shows the system's routing table (how traffic leaves the network)
+    ip route show
+    
+    echo -e "\n${YELLOW}■ CURRENT CONNECTION INFORMATION:${NC}"
+    # Detect default interface (WiFi/LAN)
+    local default_interface=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [[ -n "$default_interface" ]]; then
+        echo "Default Interface: $default_interface"
+        
+        # Detect if it's WiFi or Ethernet
+        if [[ -d "/sys/class/net/$default_interface/wireless" ]]; then
+            echo "Connection Type: WiFi"
+            # WiFi signal information if available (requires iwconfig)
+            if command -v iwconfig >/dev/null 2>&1; then
+                iwconfig "$default_interface" 2>/dev/null | grep -E "(ESSID|Signal|Frequency)"
+            fi
+        else
+            echo "Connection Type: Ethernet/LAN"
+        fi
+        
+        # Public IP address
+        echo -e "\n${YELLOW}■ PUBLIC IP ADDRESS:${NC}"
+        # Uses external services to get the external IP
+        local public_ip=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "Could not retrieve")
+        echo "Public IP: $public_ip"
+    else
+        error "No active network interface detected"
+    fi
+    
+    echo -e "\n${YELLOW}■ ACTIVE NETWORK CONNECTIONS:${NC}"
+    # Shows established TCP and UDP connections (head -20 to limit output)
+    ss -tun | head -20
+    
+    pause
+}
+
+test_basic_connectivity() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "          BASIC CONNECTIVITY TEST"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    local test_servers=(
+        "8.8.8.8 Google DNS"
+        "1.1.1.1 Cloudflare DNS" 
+        "208.67.222.222 OpenDNS"
+        "google.com Google"
+        "cloudflare.com Cloudflare"
+        "github.com GitHub"
+    )
+    
+    echo -e "${YELLOW}■ PING TEST TO SERVERS:${NC}"
+    local successful=0
+    local total=0
+    
+    for server in "${test_servers[@]}"; do
+        local ip=$(echo "$server" | awk '{print $1}')
+        local name=$(echo "$server" | awk '{print $2}')
+        total=$((total + 1))
+        
+        echo -n "Testing $name ($ip)... "
+        # Ping with 2 packets and 2 seconds timeout
+        if ping -c 2 -W 2 "$ip" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ CONNECTED${NC}"
+            successful=$((successful + 1))
+        else
+            echo -e "${RED}✗ NO CONNECTION${NC}"
+        fi
+    done
+    
+    echo -e "\n${YELLOW}■ RESULT:${NC}"
+    local percentage=$((successful * 100 / total))
+    echo "Successful connections: $successful/$total ($percentage%)"
+    
+    # DNS Resolution Test
+    echo -e "\n${YELLOW}■ DNS RESOLUTION TEST:${NC}"
+    if nslookup google.com >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ DNS working correctly${NC}"
+    else
+        echo -e "${RED}✗ DNS resolution error${NC}"
+    fi
+    
+    # HTTP Connectivity Test
+    echo -e "\n${YELLOW}■ HTTP CONNECTIVITY TEST:${NC}"
+    if curl -s --head http://www.google.com >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ HTTP connection working${NC}"
+    else
+        echo -e "${RED}✗ HTTP connection error${NC}"
+    fi
+    
+    pause
+}
+
+test_network_speed() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "              NETWORK SPEED TEST"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    # Detect connection type first
+    local default_interface=$(ip route | grep default | awk '{print $5}' | head -1)
+    if [[ -n "$default_interface" ]]; then
+        if [[ -d "/sys/class/net/$default_interface/wireless" ]]; then
+            echo -e "${YELLOW}■ CONNECTION TYPE: WiFi ($default_interface)${NC}"
+        else
+            echo -e "${YELLOW}■ CONNECTION TYPE: Ethernet/LAN ($default_interface)${NC}"
+        fi
+    fi
+    
+    echo -e "\n${YELLOW}■ INTERFACE SPEED INFORMATION:${NC}"
+    if [[ -n "$default_interface" ]]; then
+        # Show interface speed
+        if [[ -f "/sys/class/net/$default_interface/speed" ]]; then
+            local speed=$(cat "/sys/class/net/$default_interface/speed" 2>/dev/null)
+            if [[ -n "$speed" ]] && [[ $speed -gt 0 ]]; then
+                echo "Negotiated Speed: ${speed} Mbps"
+            fi
+        fi
+        
+        # Show interface statistics
+        echo -e "\nInterface Statistics:"
+        # Convert bytes to MB using awk/bc (less precise than bc but simpler)
+        cat "/sys/class/net/$default_interface/statistics/rx_bytes" 2>/dev/null | awk '{printf "Data Received: %.2f MB\n", $1/1024/1024}'
+        cat "/sys/class/net/$default_interface/statistics/tx_bytes" 2>/dev/null | awk '{printf "Data Sent: %.2f MB\n", $1/1024/1024}'
+    fi
+    
+    echo -e "\n${YELLOW}■ SPEED TEST WITH speedtest-cli:${NC}"
+    if command -v speedtest-cli >/dev/null 2>&1; then
+        echo "Running speed test (this may take 30-60 seconds)..."
+        # Run simplified speedtest-cli
+        speedtest-cli --simple
+    else
+        warning "speedtest-cli is not installed."
+        echo "To install: sudo apt install speedtest-cli"
+        
+        # Simple alternative test with ping and download
+        echo -e "\n${YELLOW}■ ALTERNATIVE LATENCY TEST:${NC}"
+        echo "Latency to Google DNS:"
+        ping -c 4 8.8.8.8 | grep "min/avg/max"
+    fi
+    
+    # Simple download speed test
+    echo -e "\n${YELLOW}■ SIMPLE DOWNLOAD TEST:${NC}"
+    echo "Downloading test file (10MB)..."
+    local start_time=$(date +%s)
+    if curl -s -o /dev/null http://speedtest.ftp.otenet.gr/files/test10Mb.db 2>/dev/null; then
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        if [[ $duration -gt 0 ]]; then
+            local speed=$((10000 / duration))  # 10MB in KB/s
+            echo "Approximate Speed: ${speed} KB/s"
+        fi
+    else
+        echo "Could not perform the download test"
+    fi
+    
+    pause
+}
+
+analyze_ports() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "                  PORT ANALYSIS"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ LOCAL OPEN PORTS:${NC}"
+    echo "=== LISTENING PORTS ==="
+    # Use ss or fallback to netstat to show listening ports
+    if command -v ss >/dev/null 2>&1; then
+        ss -tulpn | grep LISTEN
+    else
+        netstat -tulpn | grep LISTEN
+    fi
+    
+    echo -e "\n${YELLOW}■ ESTABLISHED CONNECTIONS:${NC}"
+    # Show established connections
+    if command -v ss >/dev/null 2>&1; then
+        ss -tupn | grep ESTAB | head -20
+    else
+        netstat -tupn | grep ESTAB | head -20
+    fi
+    
+    echo -e "\n${YELLOW}■ COMMON PORT SCAN:${NC}"
+    # Define common ports and services
+    local common_ports=("22:SSH" "23:Telnet" "53:DNS" "80:HTTP" "443:HTTPS" "21:FTP" "25:SMTP" "110:POP3" "143:IMAP" "993:IMAPS" "995:POP3S" "3306:MySQL" "5432:PostgreSQL" "3389:RDP" "5900:VNC")
+    
+    local host="localhost"
+    echo "Scanning common ports on $host..."
+    
+    # Use bash's built-in /dev/tcp for simple connection test
+    for port_info in "${common_ports[@]}"; do
+        local port=$(echo "$port_info" | cut -d: -f1)
+        local service=$(echo "$port_info" | cut -d: -f2)
+        
+        # Use timeout to prevent hanging if the port is filtered
+        if timeout 1 bash -c "echo >/dev/tcp/$host/$port" 2>/dev/null; then
+            echo -e "  Port $port ($service): ${GREEN}OPEN${NC}"
+        else
+            echo -e "  Port $port ($service): ${RED}CLOSED${NC}"
+        fi
+    done
+    
+    echo -e "\n${YELLOW}■ SERVICE INFORMATION:${NC}"
+    echo "Active services on ports:"
+    # Use ss or netstat to show process ID (PID) and command name (CWD/CMD)
+    if command -v ss >/dev/null 2>&1; then
+        ss -tulpn | awk '/LISTEN/ {print $5 " - " $7}' | head -15
+    else
+        netstat -tulpn | awk '/LISTEN/ {print $4 " - " $7}' | head -15
+    fi
+    
+    pause
+}
+
+complete_network_diagnosis() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "           COMPLETE NETWORK DIAGNOSIS"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    local log_file="/tmp/complete_network_diagnosis_$(date +%H%M%S).log"
+    
+    echo "Running complete network diagnosis..."
+    echo "This may take a few moments..."
+    
+    echo "=== COMPLETE NETWORK DIAGNOSIS ===" > "$log_file"
+    echo "Date: $(date)" >> "$log_file"
+    echo "User: $(whoami)" >> "$log_file"
+    echo "Hostname: $(hostname)" >> "$log_file"
+    
+    echo -e "\n${YELLOW}■ EXECUTING TESTS...${NC}"
+    
+    # 1. Interface Information
+    echo -e "\n1. INTERFACE INFORMATION:" >> "$log_file"
+    ip addr show >> "$log_file"
+    
+    # 2. Routing Table
+    echo -e "\n2. ROUTING TABLE:" >> "$log_file"
+    ip route show >> "$log_file"
+    
+    # 3. Open Ports
+    echo -e "\n3. OPEN PORTS:" >> "$log_file"
+    if command -v ss >/dev/null 2>&1; then
+        ss -tulpn >> "$log_file"
+    else
+        netstat -tulpn >> "$log_file"
+    fi
+    
+    # 4. Connectivity Test
+    echo -e "\n4. CONNECTIVITY TEST:" >> "$log_file"
+    local test_hosts=("8.8.8.8" "google.com" "1.1.1.1")
+    for host in "${test_hosts[@]}"; do
+        echo "Testing $host..." >> "$log_file"
+        ping -c 2 "$host" >> "$log_file" 2>&1
+        echo "" >> "$log_file"
+    done
+    
+    # 5. DNS
+    echo -e "\n5. DNS CONFIGURATION:" >> "$log_file"
+    cat /etc/resolv.conf >> "$log_file" 2>/dev/null || echo "Could not read /etc/resolv.conf" >> "$log_file"
+    
+    # 6. Statistics
+    echo -e "\n6. NETWORK STATISTICS:" >> "$log_file"
+    if command -v ss >/dev/null 2>&1; then
+        ss -s >> "$log_file"
+    else
+        netstat -s >> "$log_file"
+    fi
+    
+    success "Complete diagnosis saved to: $log_file"
+    
+    echo -e "\n${YELLOW}■ DIAGNOSIS SUMMARY:${NC}"
+    echo "Network Interfaces: $(ip addr show | grep -c "state UP") active"
+    echo "Open Ports: $(ss -tulpn 2>/dev/null | grep -c LISTEN)"
+    echo "Established Connections: $(ss -tun 2>/dev/null | grep -c ESTAB)"
+    
+    # Check internet connectivity
+    if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        echo -e "Internet Connectivity: ${GREEN}✓ ACTIVE${NC}"
+    else
+        echo -e "Internet Connectivity: ${RED}✗ INACTIVE${NC}"
+    fi
+    
+    echo -e "\nYou can view the full report with: cat $log_file"
+    pause
+}
+
+network_statistics() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "              NETWORK STATISTICS"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ GENERAL STATISTICS:${NC}"
+    # Show overall summary statistics for TCP/UDP/ICMP
+    if command -v ss >/dev/null 2>&1; then
+        ss -s
+    else
+        netstat -s
+    fi
+    
+    echo -e "\n${YELLOW}■ INTERFACE STATISTICS:${NC}"
+    # Iterate over network interfaces (excluding loopback 'lo')
+    for interface in /sys/class/net/*; do
+        iface=$(basename "$interface")
+        if [[ "$iface" != "lo" ]]; then
+            echo "=== Interface: $iface ==="
+            # Read and convert received/transmitted bytes to MB
+            rx_bytes=$(cat "$interface/statistics/rx_bytes" 2>/dev/null || echo "0")
+            tx_bytes=$(cat "$interface/statistics/tx_bytes" 2>/dev/null || echo "0")
+            echo "  Received: $(echo "scale=2; $rx_bytes/1024/1024" | bc) MB"
+            echo "  Sent: $(echo "scale=2; $tx_bytes/1024/1024" | bc) MB"
+        fi
+    done
+    
+    echo -e "\n${YELLOW}■ CONNECTIONS BY PROTOCOL:${NC}"
+    # Count total TCP and UDP connections
+    if command -v ss >/dev/null 2>&1; then
+        echo "TCP: $(ss -t | wc -l) connections"
+        echo "UDP: $(ss -u | wc -l) connections"
+    else
+        echo "TCP: $(netstat -t | wc -l) connections"
+        echo "UDP: $(netstat -u | wc -l) connections"
+    fi
+    
+    pause
+}
+
+dns_configuration() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "               DNS CONFIGURATION"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ CURRENT DNS CONFIGURATION:${NC}"
+    if [[ -f /etc/resolv.conf ]]; then
+        echo "File /etc/resolv.conf:"
+        # Show DNS server entries and search domains
+        cat /etc/resolv.conf
+    else
+        echo "Could not find /etc/resolv.conf"
+    fi
+    
+    echo -e "\n${YELLOW}■ ACTIVE DNS SERVICES:${NC}"
+    # Check if systemd-resolved is running and show its configured servers
+    if systemctl is-active systemd-resolved >/dev/null 2>&1; then
+        echo "systemd-resolved: ACTIVE"
+        echo "Configuration:"
+        systemd-resolve --status | grep "DNS Servers" | head -5
+    # Fallback check for NetworkManager
+    elif systemctl is-active NetworkManager >/dev/null 2>&1; then
+        echo "NetworkManager: ACTIVE"
+    else
+        echo "No active DNS service detected"
+    fi
+    
+    echo -e "\n${YELLOW}■ DNS RESOLUTION TEST:${NC}"
+    local test_domains=("google.com" "github.com" "ubuntu.com" "microsoft.com")
+    # Test resolution of common domains using nslookup
+    for domain in "${test_domains[@]}"; do
+        echo -n "Resolving $domain... "
+        if nslookup "$domain" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ OK${NC}"
+        else
+            echo -e "${RED}✗ ERROR${NC}"
+        fi
+    done
+    
+    echo -e "\n${YELLOW}■ RECOMMENDED ALTERNATIVE DNS:${NC}"
+    echo "1.1.1.1 - Cloudflare"
+    echo "8.8.8.8 - Google"
+    echo "9.9.9.9 - Quad9"
+    echo "208.67.222.222 - OpenDNS"
+    
+    pause
+}
+
+flush_dns_and_restart() {
+    clear
+    echo -e "${CYAN}"
+    echo "==================================================="
+    echo "          DNS FLUSH AND NETWORK RESTART"
+    echo "==================================================="
+    echo -e "${NC}"
+    
+    echo -e "${YELLOW}■ CLEARING DNS CACHE...${NC}"
+    
+    # Method 1: systemd-resolved
+    if systemctl is-active systemd-resolved >/dev/null 2>&1; then
+        # Try resolvectl (newer systems)
+        if command -v resolvectl >/dev/null 2>&1; then
+            sudo resolvectl flush-caches
+            if [[ $? -eq 0 ]]; then
+                echo -e "systemd-resolved (resolvectl): ${GREEN}Cache Cleared${NC}"
+            fi
+        # Try systemd-resolve (older systems)
+        elif command -v systemd-resolve >/dev/null 2>&1; then
+            sudo systemd-resolve --flush-caches
+            if [[ $? -eq 0 ]]; then
+                echo -e "systemd-resolved (systemd-resolve): ${GREEN}Cache Cleared${NC}"
+            fi
+        else
+            echo -e "systemd-resolved: ${YELLOW}Flush command not found${NC}"
+        fi
+    fi
+    
+    # Method 2: nscd (Name Service Cache Daemon)
+    if systemctl is-active nscd >/dev/null 2>&1; then
+        sudo systemctl restart nscd
+        echo -e "nscd: ${GREEN}Restarted${NC}"
+    fi
+    
+    # Method 3: Clean local cache (symlink fix for some systems)
+    sudo rm -f /etc/resolv.conf 2>/dev/null
+    sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null
+    
+    echo -e "\n${YELLOW}■ RESTARTING NETWORK SERVICES...${NC}"
+    
+    # Restart network services (try common ones)
+    if sudo systemctl restart NetworkManager 2>/dev/null; then
+        echo -e "NetworkManager: ${GREEN}Restarted${NC}"
+    elif sudo systemctl restart networking 2>/dev/null; then
+        echo -e "Networking Service: ${GREEN}Restarted${NC}"
+    elif sudo systemctl restart systemd-networkd 2>/dev/null; then
+        echo -e "systemd-networkd: ${GREEN}Restarted${NC}"
+    else
+        echo -e "Network Services: ${YELLOW}Could not restart automatically${NC}"
+    fi
+    
+    echo -e "\n${YELLOW}■ WAITING FOR NETWORK STABILIZATION...${NC}"
+    echo "Waiting 10 seconds for the network to reset..."
+    
+    # Countdown with progressive dots
+    for i in {1..10}; do
+        echo -n "."
+        sleep 1
+    done
+    echo "" # Newline after countdown
+    
+    echo -e "\n${YELLOW}■ VERIFYING CONNECTION...${NC}"
+    
+    # Robust verification
+    local connection_ok=0
+    local test_servers=("8.8.8.8" "1.1.1.1" "google.com")
+    
+    for server in "${test_servers[@]}"; do
+        if ping -c 1 -W 3 "$server" >/dev/null 2>&1; then
+            connection_ok=1
+            break
+        fi
+    done
+    
+    if [[ $connection_ok -eq 1 ]]; then
+        echo -e "Connectivity: ${GREEN}✓ RESTORED${NC}"
+        
+        # Additional DNS verification
+        if nslookup google.com >/dev/null 2>&1; then
+            echo -e "DNS Resolution: ${GREEN}✓ WORKING${NC}"
+        else
+            echo -e "DNS Resolution: ${YELLOW}⚠ WITH ISSUES${NC}"
+        fi
+    else
+        echo -e "Connectivity: ${RED}✗ PERSISTENT ISSUES${NC}"
+        echo -e "${YELLOW}Suggestion: Wait a few minutes or reboot the machine.${NC}"
+    fi
+    
+    success "Network operations completed"
+    pause
+}
+
+
 install_duc () {
 
 # Define Colors
@@ -5707,18 +6249,19 @@ echo "1) Configure network interfaces"
     echo "14) Install & Configure Prometheus "
     echo "15) Install Graphana "
     echo "16) Show system Informaton "
-    echo "17) Configure ACL "
-    echo "18) Cerbot Management "
-    echo "19) Make Backup or restore backup from ssh server "
-    echo "20) Setup OpenVPN (integration with Alpine Linux)"
-    echo "21) Setup Wireguard VPN (integration with Alpine Linux)"
-    echo "22) Install Preboot eXecution Environment (PXE) (integration with Alpine Linux) "
-	echo "23) Install Zentyal on Ubuntu 22.04 or lastest"
-	echo "24) Self-Signed TLS/SSL Setup"
-	echo "25) Install Vaultwarden with Docker + Reverse Nginx HTTPS with self-signed certificates"
-	echo "26) NO-IP Dynamic DNS Update Client Setup (integration with Alpine Linux) (Beta)"
-	echo "27) Reboot System "
-	echo "28) Shutdown System "
+	echo "17) network diagnostics"
+    echo "18) Configure ACL "
+    echo "19) Cerbot Management "
+    echo "20) Make Backup or restore backup from ssh server "
+    echo "21) Setup OpenVPN (integration with Alpine Linux)"
+    echo "22) Setup Wireguard VPN (integration with Alpine Linux)"
+    echo "23) Install Preboot eXecution Environment (PXE) (integration with Alpine Linux) "
+	echo "24) Install Zentyal on Ubuntu 22.04 or lastest"
+	echo "25) Self-Signed TLS/SSL Setup"
+	echo "26) Install Vaultwarden with Docker + Reverse Nginx HTTPS with self-signed certificates"
+	echo "27) NO-IP Dynamic DNS Update Client Setup (integration with Alpine Linux) (Beta)"
+	echo "28) Reboot System "
+	echo "29) Shutdown System "
 	echo -e "${RED}${BOLD}0) Exit${NC}"
 read -rp "Choose an option: " opcion
 
@@ -5741,18 +6284,19 @@ read -rp "Choose an option: " opcion
 	14) configure_prometheus ;;
  	15) configure_graphana ;;
   	16) show_system_info ;;
-   	17) configure_acl ;;
-    18) manage_certbot ;;
-	19) backup_or_restore_backup_from_ssh_server ;;
- 	20) setup_openvpn;;
-  	21) setup_wireguard_vpn;;
-	22) PXE_Setup;;
-	23) zentyal_80_setup;;
-	24) setup_autofirmed_https;;
-	25) setup_vaultwarden_in_docker;;
-	26) install_duc ;;
-	27) reboot_system ;;
-	28) shutdown_system ;;
+	17) menu_network_diagnostics ;;
+   	18) configure_acl ;;
+    19) manage_certbot ;;
+	20) backup_or_restore_backup_from_ssh_server ;;
+ 	21) setup_openvpn;;
+  	22) setup_wireguard_vpn;;
+	23) PXE_Setup;;
+	24) zentyal_80_setup;;
+	25) setup_autofirmed_https;;
+	26) setup_vaultwarden_in_docker;;
+	27) install_duc ;;
+	28) reboot_system ;;
+	29) shutdown_system ;;
     0) echo "Exiting. Goodbye!"; break ;;
         *) echo "Invalid option." ;;
     esac
