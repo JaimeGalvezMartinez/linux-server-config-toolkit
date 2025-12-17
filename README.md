@@ -31,6 +31,10 @@ sudo su
 
 This project is licensed under the MIT License. 
 
+☕ Do you like the project?
+
+Give it a star ⭐ on GitHub and share it with others!
+
 ## AUTHOR
 
 Jaime Galvez Martinez &COPY; 2025
