@@ -2487,12 +2487,6 @@ sudo a2enmod ssl
 echo "🌐 Creating HTTPS VirtualHost for $DOMAIN ..."
 
 sudo bash -c "cat > $VHOST_FILE" <<EOF
-# Redirect HTTP to HTTPS
-<VirtualHost *:80>
-    ServerName $DOMAIN
-    Redirect permanent / https://$DOMAIN/
-</VirtualHost>
-
 # VirtualHost on HTTTPS
 <VirtualHost *:443>
     ServerName $DOMAIN
