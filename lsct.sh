@@ -2526,6 +2526,7 @@ EOF
 
 # === Enable VirtualHost ===
 echo "✅ Enabling VirtualHost..."
+a2enmod headers
 sudo a2ensite "${DOMAIN}-ssl.conf"
 
 # === Reload Apache ===
