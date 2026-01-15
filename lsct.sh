@@ -6241,7 +6241,7 @@ echo -e "${GREEN}🔹 To access the PXE Web UI, go to ${BOLD}http://x.x.x.x:2600
 # Main Menu
 while true; do
 
-# Nuevo bloque de bienvenida con colores
+# Welcome Menu
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
 echo -e "${CYAN}${BOLD}============= Linux Server Configuration Toolkit v3.3 =============${NC}"
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
