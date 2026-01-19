@@ -1,5 +1,5 @@
 #!/bin/bash
-# Version 3.2 - november 2025
+# Version 3.4 - January 2026
 # Developer: Jaime Galvez (https://github.com/JaimeGalvezMartinez)
 # Description: Bash script for configuring a Linux based Server
 # If you like my work, please support it with a start in my github´s profile
