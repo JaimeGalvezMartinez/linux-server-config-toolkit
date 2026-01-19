@@ -292,8 +292,35 @@ analyze_ports() {
     
     echo -e "\n${YELLOW}■ COMMON PORT SCAN:${NC}"
     # Define common ports and services
-    local common_ports=("22:SSH" "23:Telnet" "53:DNS" "80:HTTP" "443:HTTPS" "21:FTP" "25:SMTP" "110:POP3" "143:IMAP" "993:IMAPS" "995:POP3S" "3306:MySQL" "5432:PostgreSQL" "3389:RDP" "5900:VNC")
-    
+    local common_ports=(
+  "21:FTP"
+  "22:SSH"
+  "23:Telnet"
+  "25:SMTP"
+  "53:DNS"
+  "80:HTTP"
+  "110:POP3"
+  "111:RPC"
+  "139:NetBIOS"
+  "143:IMAP"
+  "389:LDAP"
+  "443:HTTPS"
+  "445:SMB"
+  "636:LDAPS"
+  "873:rsync"
+  "993:IMAPS"
+  "995:POP3S"
+  "2049:NFS"
+  "3000:Grafana"
+  "3306:MySQL"
+  "5432:PostgreSQL"
+  "5900:VNC"
+  "8080:HTTP-ALT"
+  "8443:HTTPS-ALT"
+  "9090:Prometheus"
+  "9100:NodeExporter"
+)
+
     local host="localhost"
     echo "Scanning common ports on $host..."
     
