@@ -6270,7 +6270,7 @@ while true; do
 
 # Welcome Menu
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
-echo -e "${CYAN}${BOLD}============= Linux Server Configuration Toolkit v3.3 =============${NC}"
+echo -e "${CYAN}${BOLD}============= Linux Server Configuration Toolkit v3.4 =============${NC}"
 echo -e "${BLUE}${BOLD}===================================================================${NC}"
 echo -e "${CYAN}${BOLD}==================== by: Jaime Galvez Martinez ====================${NC}"
 echo -e "${CYAN}${BOLD}=================== GitHub: JaimeGalvezMartinez ===================${NC}"
